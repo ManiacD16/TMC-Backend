@@ -4,69 +4,101 @@ const jwt = require("jsonwebtoken");
 
 // Register
 exports.register = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, referralEmail } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
   }
 
   try {
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(409).json({ error: "User already exists with this email." });
+    const userExist = await User.findOne({ email });
+
+    if (userExist) {
+      return res.status(409).json({ error: "Email already exists" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ email, password: hashedPassword });
-    await user.save();
+    // const hashedPassword = await bcrypt.hash(password, 10);
+    // const user = new User({ email, password: hashedPassword });
 
+    if (referralEmail) {
+      const referrer = await User.findOne({ email: referralEmail });
+      if (referrer) {
+        referrer.balance += 10; // Example bonus amount; adjust as needed
+        await referrer.save();
+        user.referrer = referrer._id;
+      }
+    }
+
+    const user = new User({
+      email,
+      password,
+      //   : hashedPassword
+    });
+
+    await user.save();
     res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
+    console.error("Registration error:", error);
     res.status(500).json({ error: "Registration failed. Please try again." });
   }
 };
 
 // Login
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required." });
-  }
+  console.log("Signin request body:", req.body);
 
   try {
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ error: "Invalid credentials." });
+    const { email, password } = req.body;
+
+    // Check if email and password are provided
+    if (!email || !password) {
+      return res.status(400).json({ error: "Please fill in all fields." });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: "Invalid credentials." });
+    // Find the user by email
+    const userLogin = await User.findOne({ email });
+    console.log("User found:", userLogin);
+
+    // If user does not exist
+    if (!userLogin) {
+      return res.status(400).json({ error: "Invalid credentials." });
+    }
+    console.log("User found:", userLogin);
+    // Compare the provided password with the stored hashed password
+    const isMatch = await bcrypt.compare(password, userLogin.password);
+    console.log("Password match result:", isMatch);
+    console.log("Entered password:", password);
+    console.log("Stored password:", userLogin.password);
+
+    // If the password does not match
+    if (!isMatch) {
+      return res.status(400).json({ error: "Invalid credentials." });
     }
 
-    // Create JWT token
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    // Generate token and set cookie if login is successful
+    const token = await userLogin.generateAuthToken();
+    console.log("Generated token:", token);
 
-    res.json({ token, user: { email: user.email, balance: user.balance } });
-  } catch (error) {
-    res.status(500).json({ error: "Login failed. Please try again." });
+    res.cookie("jwtoken", token, {
+      expires: new Date(Date.now() + 25892000000),
+      httpOnly: true,
+    });
+
+    return res.json({
+      message: "User signed in successfully.",
+      token: token,
+      user: { email: userLogin.email },
+    });
+  } catch (err) {
+    console.error("Signin error:", err);
+    return res.status(500).json({ error: "Internal Server Error." });
   }
 };
 
 // Logout
 exports.logout = (req, res) => {
-  if (req.session) {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ message: "Logout failed. Please try again later." });
-      }
-      res.clearCookie("connect.sid");
-      return res.json({ message: "Logged out successfully" });
-    });
-  } else {
-    return res.status(403).json({ message: "No session to log out from" });
-  }
+  res.clearCookie("token");
+  res.json({ message: "Logged out successfully" });
 };
 
 // Fetch User Data
@@ -78,6 +110,7 @@ exports.fetchUserData = async (req, res) => {
     }
     res.json(user);
   } catch (error) {
+    console.error("Fetch user data error:", error);
     res.status(500).json({ error: "Failed to fetch user data" });
   }
 };

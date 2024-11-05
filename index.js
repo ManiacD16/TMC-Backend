@@ -6,6 +6,7 @@ const session = require("express-session"); // Import express-session
 const authRoutes = require("./routes/authRoutes");
 const investmentRoutes = require("./routes/investmentRoutes");
 const { connectDB } = require("./config/database");
+const cookieParser = require("cookie-parser");
 require("dotenv").config();
 require("./crons/roiCron"); // Import the cron job
 
@@ -20,14 +21,14 @@ connectDB();
 app.use(
   cors({
     origin: "http://localhost:5173", // Allow requests from this origin
-    origin: "https://tmc-omega.vercel.app",
+    // origin: "https://tmc-omega.vercel.app",
     credentials: true, // Allow credentials (like cookies)
   })
 );
 
 // Middleware for body parsing
 app.use(bodyParser.json());
-
+app.use(cookieParser());
 // Session middleware
 app.use(
   session({
