@@ -14,7 +14,7 @@ const setTokenCookie = (res, token) => {
   });
 };
 
-// Register new user
+// Register
 exports.register = async (req, res) => {
   const { email, password, referralEmail } = req.body;
 
@@ -33,11 +33,10 @@ exports.register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ email, password: hashedPassword });
 
-    // Handle referral bonus if referralEmail is provided
     if (referralEmail) {
       const referrer = await User.findOne({ email: referralEmail });
       if (referrer) {
-        referrer.balance += 10; // Referral bonus
+        referrer.balance += 10;
         await referrer.save();
         user.referrer = referrer._id;
       }
@@ -46,12 +45,11 @@ exports.register = async (req, res) => {
     await user.save();
     res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
-    console.error("Registration Error:", error);
     res.status(500).json({ error: "Registration failed. Please try again." });
   }
 };
 
-// User login with cookie-based token
+// Login with cookie-based token
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -74,18 +72,17 @@ exports.login = async (req, res) => {
       user: { email: user.email, balance: user.balance },
     });
   } catch (error) {
-    console.error("Login Error:", error);
     res.status(500).json({ error: "Login failed. Please try again." });
   }
 };
 
-// Logout user and clear cookie
+// Logout by clearing cookie
 exports.logout = (req, res) => {
   res.clearCookie("token");
   res.json({ message: "Logged out successfully" });
 };
 
-// Fetch User Data excluding password
+// Fetch User Data
 exports.fetchUserData = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password");
@@ -99,37 +96,40 @@ exports.fetchUserData = async (req, res) => {
   }
 };
 
-// Fetch Total Daily ROI from investments
+// Fetch Daily ROI
 exports.fetchDailyROI = async (req, res) => {
   try {
-    // Debug log to check if req.userID is correctly set
-    console.log("User ID from request:", req.userID);
-
-    if (!req.userID) {
-      return res
-        .status(400)
-        .json({ error: "User ID not found in the request" });
+    // Ensure req.user.id is available
+    if (!req.user || !req.user.id) {
+      return res.status(400).json({ error: "User not authenticated" });
     }
 
-    const investments = await Investment.find({ user: req.userID });
-    if (!investments || investments.length === 0) {
+    // Fetch investments for the authenticated user
+    const investments = await Investment.find({ user: req.user.id });
+
+    // If no investments found, handle gracefully
+    if (investments.length === 0) {
       return res
         .status(404)
-        .json({ error: "No investments found for the user" });
+        .json({ error: "No investments found for this user" });
     }
 
+    // Calculate the total ROI
     const totalROI = investments.reduce(
       (acc, inv) => acc + (inv.dailyROI || 0),
       0
     );
+
+    // Return the total ROI to the client
     res.json({ totalROI });
   } catch (error) {
-    console.error("Fetch Daily ROI Error:", error);
+    console.error("Error fetching daily ROI:", error);
+    // Return a 500 status with the error message
     res.status(500).json({ error: "Failed to fetch daily ROI" });
   }
 };
 
-// Update Daily ROI for all user's active investments
+// Update Daily ROI
 exports.updateDailyROI = async (req, res) => {
   try {
     const investments = await Investment.find({ user: req.user.id });
@@ -139,12 +139,11 @@ exports.updateDailyROI = async (req, res) => {
     }
     res.json({ message: "Daily ROI updated successfully" });
   } catch (error) {
-    console.error("Update Daily ROI Error:", error);
     res.status(500).json({ error: "Failed to update daily ROI" });
   }
 };
 
-// User withdrawal
+// Withdraw
 exports.withdraw = async (req, res) => {
   const { amount } = req.body;
 
@@ -157,19 +156,18 @@ exports.withdraw = async (req, res) => {
     await user.save();
     res.json({ message: "Withdrawal successful", balance: user.balance });
   } catch (error) {
-    console.error("Withdrawal Error:", error);
     res.status(500).json({ error: "Withdrawal failed" });
   }
 };
 
-// Invest with cap check
+// Invest with Cap Check
 exports.invest = async (req, res) => {
   const { amount } = req.body;
 
   try {
     const user = await User.findById(req.user.id);
     const activeInvestments = await Investment.aggregate([
-      { $match: { user: user._id, isActive: true } },
+      { $match: { user: user.id, isActive: true } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
 
@@ -188,16 +186,45 @@ exports.invest = async (req, res) => {
       });
     }
 
+    // Create new investment
     const investment = new Investment({
       user: user._id,
       amount,
       isActive: true,
     });
     await investment.save();
-    res.json({ message: "Investment successful", newActiveInvestmentTotal });
+
+    // Deduct the investment amount from user's balance
+    user.balance = amount;
+    await user.save(); // Save the updated balance
+
+    // Return the updated balance along with a success message
+    res.json({
+      message: "Investment successful",
+      newBalance: user.balance, // Return the updated balance
+      newActiveInvestmentTotal,
+    });
   } catch (error) {
-    console.error("Investment Error:", error);
-    res.status(500).json({ error: "Investment failed" });
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Fetch total investment for the authenticated user
+exports.fetchTotalInvestment = async (req, res) => {
+  try {
+    // Find all investments for the authenticated user
+    const investments = await Investment.find({ user: req.user.id });
+
+    // Calculate the total investment by summing the amounts
+    const totalInvestment = investments.reduce((total, investment) => {
+      return total + investment.amount;
+    }, 0);
+
+    // Send the total investment back to the frontend
+    res.json({ totalInvestment });
+  } catch (error) {
+    console.error("Error fetching total investment:", error);
+    res.status(500).json({ error: "Failed to fetch total investment" });
   }
 };
 
@@ -216,7 +243,6 @@ exports.directReferralBonus = async (req, res) => {
     await referrer.save();
     res.json({ message: "Direct referral bonus credited", bonus });
   } catch (error) {
-    console.error("Referral Bonus Error:", error);
     res.status(500).json({ error: "Failed to credit referral bonus" });
   }
 };
@@ -232,7 +258,6 @@ exports.checkYieldPackageEligibility = async (req, res) => {
     }
     res.json({ message: "Eligible for yield package", package });
   } catch (error) {
-    console.error("Check Yield Package Error:", error);
     res
       .status(500)
       .json({ error: "Failed to check eligibility for yield package" });
@@ -244,21 +269,70 @@ exports.calculateLevelROI = async (req, res) => {
   const { level, directReferrals, amount } = req.body;
 
   try {
+    // Ensure that the user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ error: "Unauthorized: User not found" });
+    }
+
+    // Log the authenticated user (for debugging)
+    console.log("Authenticated user:", req.user); // This will log the full user object
+
+    const user = req.user; // Access the authenticated user object
+
+    // Ensure that all required fields are provided in the request body
+    if (!level || !directReferrals || !amount) {
+      return res.status(400).json({
+        error: "Missing required fields: level, directReferrals, amount",
+      });
+    }
+
+    // Ensure the amount is a valid number and within expected range
+    if (isNaN(amount) || amount <= 0) {
+      return res.status(400).json({
+        error: "Invalid amount provided. It must be a positive number.",
+      });
+    }
+
+    // Calculate ROI percentage based on level and direct referrals
     let roiPercentage;
+
     if (directReferrals < 5) {
       roiPercentage = level <= 5 ? 0.1 : 0.01;
     } else {
       roiPercentage = level === 1 ? 0.1 : level <= 5 ? 0.5 : 0.02;
     }
 
+    // Calculate the ROI based on the amount and ROI percentage
     const roi = amount * roiPercentage;
-    res.json({ message: "ROI calculated based on level and referrals", roi });
+
+    // Optionally, you can save this ROI calculation to the database if needed
+    // Example: Record this ROI in the user's investment history
+    const investment = new Investment({
+      user: user._id,
+      amount: amount,
+      roiPercentage: roiPercentage,
+      roi: roi,
+      type: "Level ROI",
+    });
+    await investment.save();
+
+    // Respond with a success message and the calculated ROI
+    res.json({
+      message: "ROI calculated successfully based on level and referrals",
+      roi,
+      roiPercentage,
+      level,
+      directReferrals,
+      amount,
+    });
   } catch (error) {
-    console.error("Level ROI Calculation Error:", error);
+    // Log any unexpected errors for debugging purposes
+    console.error("Error in calculateLevelROI:", error);
+
+    // Return a 500 error if something goes wrong during processing
     res.status(500).json({ error: "Failed to calculate level ROI" });
   }
 };
-
 // Check Rank Qualification
 exports.checkRankQualification = async (req, res) => {
   const { rank, businessVolume, referrals } = req.body;
@@ -282,7 +356,6 @@ exports.checkRankQualification = async (req, res) => {
 
     res.json({ isQualified, reward });
   } catch (error) {
-    console.error("Rank Qualification Error:", error);
     res.status(500).json({ error: "Failed to check rank qualification" });
   }
 };
@@ -295,7 +368,6 @@ exports.calculateDailyCapping = async (req, res) => {
     const cappedReturn = Math.min(dailyReturn, 20000);
     res.json({ message: "Daily capping calculated", cappedReturn });
   } catch (error) {
-    console.error("Daily Capping Error:", error);
     res.status(500).json({ error: "Failed to calculate daily capping" });
   }
 };
