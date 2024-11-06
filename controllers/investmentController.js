@@ -165,28 +165,38 @@ exports.invest = async (req, res) => {
   const { amount } = req.body;
 
   try {
+    // Fetch the user based on the ID in the JWT
     const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Get the total active investments for the user
     const activeInvestments = await Investment.aggregate([
       { $match: { user: user.id, isActive: true } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
 
+    // If no active investments exist, set total to 0
     const activeInvestmentTotal = activeInvestments[0]?.total || 0;
     const newActiveInvestmentTotal = activeInvestmentTotal + amount;
 
+    // Check if the new investment exceeds the $10,000 limit
     if (newActiveInvestmentTotal > 10000) {
       return res.status(400).json({
         error: "Total active investments cannot exceed $10,000 at a time.",
       });
     }
 
+    // Check if the individual investment amount is within the allowed range
     if (amount < 50 || amount > 10000) {
       return res.status(400).json({
         error: "Individual investment amount must be between $50 and $10,000",
       });
     }
 
-    // Create new investment
+    // Create a new investment record
     const investment = new Investment({
       user: user._id,
       amount,
@@ -194,15 +204,21 @@ exports.invest = async (req, res) => {
     });
     await investment.save();
 
-    // Deduct the investment amount from user's balance
-    user.balance = amount;
+    // Deduct the investment amount from the user's balance
+    if (user.balance < amount) {
+      return res
+        .status(400)
+        .json({ error: "Insufficient balance to make the investment" });
+    }
+
+    user.balance = amount; // Add to the balance
     await user.save(); // Save the updated balance
 
-    // Return the updated balance along with a success message
+    // Return a success message and updated data
     res.json({
       message: "Investment successful",
-      newBalance: user.balance, // Return the updated balance
-      newActiveInvestmentTotal,
+      newBalance: user.balance, // Updated user balance
+      newActiveInvestmentTotal, // New total of active investments
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

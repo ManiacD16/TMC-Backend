@@ -34,10 +34,13 @@ const Authenticate = async (req, res, next) => {
       return res.status(401).json({ error: "Unauthorized: User not found" });
     }
 
-    // Attach token and user information to the request object
-    req.token = token;
-    req.rootUser = rootUser;
-    req.userID = rootUser._id;
+    // Attach the user object directly to `req.user` and token to `req.token`
+    req.user = rootUser; // Attach the user object directly
+    req.token = token; // Attach token for later use if needed
+    req.userID = rootUser._id; // You can also use userID directly
+
+    // Log to check user data (for debugging purposes)
+    console.log("Authenticated User:", req.user);
 
     // Proceed to the next middleware or route handler
     next();

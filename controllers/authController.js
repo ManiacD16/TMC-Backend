@@ -96,9 +96,27 @@ exports.login = async (req, res) => {
 };
 
 // Logout
+// Logout
 exports.logout = (req, res) => {
-  res.clearCookie("token");
-  res.json({ message: "Logged out successfully" });
+  // Optionally, you can check if the token exists
+  const token = req.cookies.jwtoken;
+
+  if (!token) {
+    return res
+      .status(400)
+      .json({ error: "No token found, user is already logged out." });
+  }
+
+  // Clear the cookie
+  res.clearCookie("jwtoken", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+  });
+
+  // Optionally, you can also invalidate the JWT on the server side (e.g., blacklist it),
+  // but clearing the cookie is generally sufficient for client-side logout.
+
+  return res.json({ message: "Logged out successfully" });
 };
 
 // Fetch User Data

@@ -1,11 +1,17 @@
-const cron = require('node-cron');
-const User = require('../models/User');
-const Investment = require('../models/investment');
-const { calculateDailyROI, applyTax, calculateCappedROI } = require('../utils/calculations');
+const cron = require("node-cron");
+const User = require("../models/User");
+const Investment = require("../models/investment");
+const {
+  calculateDailyROI,
+  applyTax,
+  calculateCappedROI,
+} = require("../utils/calculations");
 
-// Cron job to run daily at midnight (00:00)
-cron.schedule('0 0 * * *', async () => {
-  console.log('Running daily ROI calculation...');
+// Cron job to run every 20 minutes (for testing purposes)
+cron.schedule("*/20 * * * *", async () => {
+  console.log(
+    "Running daily ROI calculation (every 20 minutes for testing)..."
+  );
 
   try {
     // Fetch all users
@@ -13,7 +19,10 @@ cron.schedule('0 0 * * *', async () => {
 
     for (const user of users) {
       // Get the user's investments
-      const investments = await Investment.find({ user: user._id, isCapped: false });
+      const investments = await Investment.find({
+        user: user._id,
+        isCapped: false,
+      });
 
       for (const investment of investments) {
         // Calculate the daily ROI
@@ -31,7 +40,7 @@ cron.schedule('0 0 * * *', async () => {
         // Update the investment with accumulated ROI
         investment.dailyROI += dailyROI;
         investment.daysAccumulated += 1;
-        
+
         // If auto-invest is enabled, reinvest the daily ROI
         if (user.autoInvestEnabled) {
           if (user.investmentTotal + dailyROI <= user.investmentCap) {
@@ -52,8 +61,8 @@ cron.schedule('0 0 * * *', async () => {
       await user.save();
     }
 
-    console.log('Daily ROI calculation completed successfully.');
+    console.log("Daily ROI calculation completed successfully (testing mode).");
   } catch (error) {
-    console.error('Error in daily ROI calculation:', error);
+    console.error("Error in daily ROI calculation:", error);
   }
 });

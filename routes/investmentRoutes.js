@@ -6,9 +6,10 @@ const {
   invest,
   directReferralBonus,
   checkYieldPackageEligibility,
-  calculateLevelROI,
+  calculateLevelROI, // <-- This should be imported
   checkRankQualification,
   calculateDailyCapping,
+  fetchTotalInvestment,
 } = require("../controllers/investmentController");
 const router = express.Router();
 const auth = require("../middleware/auth");
@@ -33,6 +34,9 @@ router.post("/check-yield-package", auth, checkYieldPackageEligibility);
 
 // Route to calculate ROI based on referral levels
 router.post("/calculate-level-roi", auth, calculateLevelROI);
+
+// Route to fetch total investment for the authenticated user
+router.get("/total-investment", auth, fetchTotalInvestment);
 
 // Route to check rank qualification
 router.post("/check-rank-qualification", auth, checkRankQualification);
