@@ -309,7 +309,7 @@ exports.checkYieldPackageEligibility = async (req, res) => {
   }
 };
 
-// Calculate Level ROI
+// Calculate Level ROI's
 exports.calculateLevelROI = async (req, res) => {
   try {
     // Check if the user is authenticated
