@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const userSchema = new mongoose.Schema({
-  email: {
+  address: {
     type: String,
     required: true,
     unique: true,
@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema({
     default: 10000,
   },
   directConnections: {
-    type:mongoose.Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
   createdAt: {

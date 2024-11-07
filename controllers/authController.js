@@ -3,39 +3,42 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 // Register
-exports.register = async (req, res) => {
-  const { email, password, referralEmail } = req.body;
+// const User = require("../models/User"); // Assuming you're using a Mongoose model
 
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required." });
+exports.register = async (req, res) => {
+  const { address, password, referralAddress } = req.body;
+
+  if (!address || !password) {
+    return res
+      .status(400)
+      .json({ error: "Wallet address and password are required." });
   }
 
   try {
-    // Check if the user already exists
-    const userExist = await User.findOne({ email });
+    // Check if the user already exists based on the wallet address
+    const userExist = await User.findOne({ address });
 
     if (userExist) {
-      return res.status(409).json({ error: "Email already exists" });
+      return res.status(409).json({ error: "Wallet address already exists" });
     }
 
     let referrer = null;
 
-    // If there's a referral email, find the referrer user
-    if (referralEmail) {
-      referrer = await User.findOne({ email: referralEmail });
+    // If there's a referral address, find the referrer user
+    if (referralAddress) {
+      referrer = await User.findOne({ address: referralAddress });
       if (referrer) {
         referrer.balance += 10; // Example: Give bonus amount to referrer
         await referrer.save();
       } else {
-        return res.status(400).json({ error: "Referral email not found" });
+        return res.status(400).json({ error: "Referral address not found" });
       }
     }
 
-    // Now create the user object and hash the password if necessary
-    // const hashedPassword = await bcrypt.hash(password, 10); // Uncomment if you are hashing the password
+    // Create the new user object
     const newUser = new User({
-      email,
-      password, // Use hashed password here
+      address,
+      password, // Use hashed password here if necessary
       referrer: referrer ? referrer._id : null, // Assign referrer if exists
     });
 
@@ -44,8 +47,8 @@ exports.register = async (req, res) => {
     // Respond back with a success message
     res.status(201).json({
       message: "User registered successfully",
-      // Optionally, you can also send back the user's details or token
-      // token: generateAuthToken(newUser), // Make sure you generate a JWT token or any auth token here
+      // You may also return a JWT token or authentication token here if needed
+      // token: generateAuthToken(newUser),
     });
   } catch (error) {
     console.error("Registration error:", error);
@@ -58,22 +61,23 @@ exports.login = async (req, res) => {
   console.log("Signin request body:", req.body);
 
   try {
-    const { email, password } = req.body;
+    const { address, password } = req.body; // Get the address and password from the request body
 
-    // Check if email and password are provided
-    if (!email || !password) {
+    // Check if address and password are provided
+    if (!address || !password) {
       return res.status(400).json({ error: "Please fill in all fields." });
     }
 
-    // Find the user by email
-    const userLogin = await User.findOne({ email });
-    console.log("User found:", userLogin);
+    // Find the user by wallet address (instead of email)
+    const userLogin = await User.findOne({ address });
 
     // If user does not exist
     if (!userLogin) {
       return res.status(400).json({ error: "Invalid credentials." });
     }
+
     console.log("User found:", userLogin);
+
     // Compare the provided password with the stored hashed password
     const isMatch = await bcrypt.compare(password, userLogin.password);
     console.log("Password match result:", isMatch);
@@ -90,14 +94,15 @@ exports.login = async (req, res) => {
     console.log("Generated token:", token);
 
     res.cookie("jwtoken", token, {
-      expires: new Date(Date.now() + 25892000000),
-      httpOnly: true,
+      expires: new Date(Date.now() + 25892000000), // Cookie expiration (around 30 days)
+      httpOnly: true, // Makes the cookie inaccessible to JavaScript
     });
 
+    // Respond with success and send token and user details (wallet address)
     return res.json({
       message: "User signed in successfully.",
       token: token,
-      user: { email: userLogin.email },
+      user: { address: userLogin.address }, // Send the wallet address instead of email
     });
   } catch (err) {
     console.error("Signin error:", err);
