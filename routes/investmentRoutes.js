@@ -41,7 +41,7 @@ router.get("/calculate-level-roi", auth, calculateLevelROI);
 router.get("/total-investment", auth, getUserInvestmentTotal);
 
 // Route to check rank qualification
-router.post("/check-rank-qualification", auth, checkRankQualification);
+
 
 // Route to calculate daily capping for returns
 router.post("/calculate-daily-capping", auth, calculateDailyCapping);
