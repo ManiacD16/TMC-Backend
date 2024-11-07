@@ -1,7 +1,15 @@
 // utils/calculator.js
 
-function calculateDailyROI(amount, dailyRate = 0.008) {
-  return amount * dailyRate;
+function calculateDailyROI(amount, user) {
+  if (user.rank === "TMC PLUS" ){
+    return amount * 0.008;
+  }
+  else if (user.rank === "TMC PRO" || user.rank === "TMC SMART" || user.rank === "TMC ROYAL" || user.rank === "TMC CHIEF" || user.rank === "TMC AMBASSADOR") {
+    return amount * 0.01;
+  }
+  else {
+    return amount * 0.006;
+  }
 }
 
 function applyTax(amount, taxRate = 0.25) {

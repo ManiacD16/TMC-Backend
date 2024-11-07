@@ -132,7 +132,7 @@ exports.updateDailyROI = async (req, res) => {
   try {
     const investments = await Investment.find({ user: req.user.id });
     for (let investment of investments) {
-      investment.dailyROI = calculateDailyROI(investment.amount);
+      investment.dailyROI = calculateDailyROI(investment.amount,req.user);
       await investment.save();
     }
     res.json({ message: "Daily ROI updated successfully" });
@@ -168,8 +168,7 @@ exports.withdraw = async (req, res) => {
 };
 
 // Invest with Cap Check
-// Invest with Cap Check
-// Invest with Cap Check
+
 exports.invest = async (req, res) => {
   const { amount, packageType } = req.body;
 
@@ -186,7 +185,7 @@ exports.invest = async (req, res) => {
     if (isNaN(numericAmount)) {
       return res
         .status(400)
-        .json({ error: "Investment amount must be a valid number" });
+        .json({ error: "Stake amount must be a valid number" });
     }
 
     // Calculate the liquidity fee (1% of the investment amount)
@@ -196,7 +195,7 @@ exports.invest = async (req, res) => {
     // Check if the investment amount is within the allowed range
     if (numericAmount < 50 || numericAmount > 10000) {
       return res.status(400).json({
-        error: "Investment amount must be between $50 and $10,000",
+        error: "Stake amount must be between $50 and $10,000",
       });
     }
 
@@ -209,13 +208,7 @@ exports.invest = async (req, res) => {
       isActive: true,
     });
 
-    await investment.save(); // Save the new investment
-    console.log("Investment saved:", investment); // Debugging step
-
-    // Update the user's total investment (investmentTotal) by adding the current investment amount
-    user.investmentTotal += numericAmount; // Ensure it's adding a number
-    await user.save(); // Save the updated total investment
-    console.log("User updated:", user); // Debugging step
+  
 
     // Fetch the updated total active investment for the user
     const activeInvestments = await Investment.aggregate([
@@ -225,24 +218,32 @@ exports.invest = async (req, res) => {
 
     const activeInvestmentTotal = activeInvestments[0]?.total || 0;
     const newActiveInvestmentTotal = activeInvestmentTotal + amount;
-    console.log("Total Active Investment:", newActiveInvestmentTotal); // Debugging step
+    console.log("Total Active Stake:", newActiveInvestmentTotal); // Debugging step
+// id 
+if (newActiveInvestmentTotal > 10000) {
+  return res.status(400).json({
+    error: "Total active stake cannot exceed $10,000",
+  })
+}
 
-    // Optionally, calculate and apply the yield package (if needed)
-    const yieldPackage = calculateYield(numericAmount);
-    if (yieldPackage) {
-      // Optional logic to handle yield package saving
-    }
+    await investment.save(); // Save the new investment
+    console.log("Stake saved:", investment); // Debugging step
 
+    // Update the user's total investment (investmentTotal) by adding the current investment amount
+    user.investmentTotal += numericAmount; // Ensure it's adding a number
+    user.firstInvestment = new Date();
+    await user.save(); // Save the updated total investment
+    console.log("User updated:", user); // Debugging step
     // Return the updated total active investment and other details to the frontend
     res.json({
-      message: "Investment successful",
+      message: "Staking successful",
       newActiveInvestmentTotal, // Send the updated total active investment
       liquidityFee,
       yieldPackage,
       userInvestmentTotal: user.investmentTotal, // Send total investment
     });
   } catch (error) {
-    console.error("Investment Error:", error);
+    console.error("Staking Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -260,8 +261,8 @@ exports.getUserInvestmentTotal = async (req, res) => {
       investmentTotal: user.investmentTotal, // Send the total investment
     });
   } catch (error) {
-    console.error("Error fetching investment total:", error);
-    res.status(500).json({ error: "Failed to fetch investment total" });
+    console.error("Error fetching staked total:", error);
+    res.status(500).json({ error: "Failed to fetch staked total" });
   }
 };
 
@@ -309,7 +310,7 @@ exports.checkYieldPackageEligibility = async (req, res) => {
   }
 };
 
-// Calculate Level ROI's
+// Calculate Level ROI
 exports.calculateLevelROI = async (req, res) => {
   try {
     // Check if the user is authenticated
@@ -334,7 +335,26 @@ exports.calculateLevelROI = async (req, res) => {
     // Function to calculate ROI based on level
     const getLevelROI = (level) => {
       let roiPercentage;
-      if (level === 1) {
+      if(user.rank === "TMC PLUS" || user.rank === "TMC PRO" || user.rank === "TMC SMART"||user.rank === "TMC ROYAL"||user.rank === "TMC CHIEF"||user.rank === "TMC AMBASSADOR" ){
+        if (level === 1) {
+          roiPercentage = 0.1; // 10% ROI for Level 1
+        } else if (level === 2) {
+          roiPercentage = 0.5; // 50% ROI for Level 2
+        } else if (level === 3) {
+          roiPercentage = 0.4; // 40% ROI for Level 3
+        } else if (level === 4) {
+          roiPercentage = 0.3; // 30% ROI for Level 4
+        } else if (level === 5) {
+          roiPercentage = 0.2; // 20% ROI for Level 5
+        } else if (level >= 6 && level <= 150) {
+          roiPercentage = 0.02; // 2% ROI for Level 6-150
+        } 
+
+        return roiPercentage ;
+      }
+      else
+      {
+        if (level === 1) {
         roiPercentage = 0.1; // 10% ROI for Level 1
       } else if (level === 2) {
         roiPercentage = 0.1; // 10% ROI for Level 2
@@ -346,10 +366,8 @@ exports.calculateLevelROI = async (req, res) => {
         roiPercentage = 0.1; // 10% ROI for Level 5
       } else if (level >= 6 && level <= 50) {
         roiPercentage = 0.01; // 1% ROI for Level 6-50
-      } else {
-        roiPercentage = 0.01; // Default ROI for any higher levels
       }
-      return roiPercentage;
+      return roiPercentage;}
     };
 
     // Function to calculate ROI recursively for all levels of referrals
@@ -448,19 +466,349 @@ exports.fetchTotalInvestment = async (req, res) => {
 };
 
 // Check Rank Qualification
-exports.checkRankQualification = async (req, res) => {
-  const { totalInvestment } = req.body;
+async function updateDirectConnections() {
+  try {
+    // Fetch all users (you can add additional filters if needed)
+    const users = await User.find({ investmentTotal: { $lt: 500 } }, null, { lean: true });
+    
+
+    // Create a map to store referrer -> direct connections
+    const bulkOps = [];
+
+    // Traverse all users to update their direct connections
+    for (const user of users) {
+      // Check if the user has a referrer (non-null)
+      if (user.referrerId) {
+        
+        // Create the bulk write operation to add user to referrer's directConnections
+        bulkOps.push({
+          updateOne: {
+            filter: { _id: user.referrerId },
+            update: { $addToSet: { directConnections: user._id } },
+          },
+        });
+      }
+    }
+
+    // If there are any operations to perform, execute the bulk write
+    if (bulkOps.length > 0) {
+      const result = await User.bulkWrite(bulkOps);
+      console.log(`${result.modifiedCount} users' direct connections were updated.`);
+    } else {
+      console.log("No users to update.");
+    }
+  } catch (error) {
+    console.error("Error updating direct connections:", error);
+  }
+}
+
+
+const MAX_LEVELS = 50;  // Max depth for downline traversal
+
+const rankCriteria = {
+  "TMC_PLUS": {
+    initialDirectConnections: 5,   // Initial direct referrals required within the first 30 days
+    initialTimeframe: 30,        // Timeframe in days for the initial referrals
+    nextDirectConnections: 8,      // Next direct referrals required within the next 60 days
+    nextTimeframe: 60,           // Timeframe in days for the next referrals
+    finalDirectConnections: 10,    // Final direct referrals required within the final 90 days
+    finalTimeframe: 90
+  },
+  "TMC_PRO": {
+    requiredTmcPlus: 4,        // Minimum number of TMC Plus required
+  },
+  "TMC_SMART": {
+    requiredTmcPro: 5,         // Minimum number of TMC Pro required
+  },
+  "TMC_ROYAL": {
+    requiredTmcSmart: 6,       // Minimum number of TMC Smart required
+  },
+  "TMC_CHIEF": {
+    requiredTmcRoyal: 7,       // Minimum number of TMC Royal required
+  },
+  "TMC_AMBASSADOR": {
+    requiredTmcChief: 8,       // Minimum number of TMC Chief required
+  }
+};
+
+// Determine rank based on user data
+exports.determineRank = async (req, res) => {
+  updateDirectConnections();
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const { rank, directConnections } = user;
+
+  // Default rank is Regular
+  if (rank === "Regular") {
+    return checkForTmcPlus(user, rankCriteria["TMC_PLUS"]);
+  }
+  
+  switch (rank) {
+    case 'TMC_PLUS':
+      return checkForTmcPro(user, rankCriteria["TMC_PRO"]);
+    case 'TMC_PRO':
+      return checkForTmcSmart(user, rankCriteria["TMC_SMART"]);
+    case 'TMC_SMART':
+      return checkForTmcRoyal(user, rankCriteria["TMC_ROYAL"]);
+    case 'TMC_ROYAL':
+      return checkForTmcChief(user, rankCriteria["TMC_CHIEF"]);
+    case 'TMC_CHIEF':
+      return checkForTmcAmbassador(user, rankCriteria["TMC_AMBASSADOR"]);
+    default:
+      return res.status(400).json({ error: "Rank not recognized" });
+  }
+};
+
+// Check if user qualifies for TMC Plus
+function checkForTmcPlus(user, criteria) {
+  const { directConnections, firstInvestment } = user;
+  const currentDate = new Date();
+  const daysSinceRegistration = Math.floor((currentDate - firstInvestment) / (1000 * 60 * 60 * 24));
+
+  // Filter referrals based on their registration date within specific timeframes
+  const initialReferrals = directConnections.filter(referral => 
+    daysSinceRegistration <= criteria.initialTimeframe &&
+    referral.firstInvestment <= criteria.initialTimeframe
+  );
+
+  const nextReferrals = directConnections.filter(referral => 
+    daysSinceRegistration > criteria.initialTimeframe &&
+    daysSinceRegistration <= criteria.initialTimeframe + criteria.nextTimeframe &&
+    referral.firstInvestment <= criteria.nextTimeframe
+  );
+
+  const finalReferrals = directConnections.filter(referral => 
+    daysSinceRegistration > criteria.initialTimeframe + criteria.nextTimeframe &&
+    daysSinceRegistration <= criteria.initialTimeframe + criteria.nextTimeframe + criteria.finalTimeframe &&
+    referral.firstInvestment <= criteria.finalTimeframe
+  );
+
+  // Check if the referrals meet the required thresholds for TMC_PLUS
+  if (initialReferrals.length >= criteria.initialDirectConnections &&
+    nextReferrals.length >= criteria.nextDirectConnections &&
+    finalReferrals.length >= criteria.finalDirectConnections) {
+    return 'User qualifies for TMC Plus';
+  }
+
+  return 'User does not qualify for TMC Plus yet';
+}
+
+// Check if user qualifies for TMC Pro
+async function checkForTmcPro(user, criteria) {
+  const { directConnections } = user;
+  let tmcPlusCount = 0;
+
+  for (let i = 0; i < directConnections.length; i++) {
+    const direct = directConnections[i];
+    if (direct.rank === 'TMC_PLUS') {
+      tmcPlusCount++;
+    } else {
+      // Traverse the downline for TMC Plus rank (up to 50 levels deep)
+      const foundInDownline = await checkDownlineForRank(direct, 'TMC_PLUS', MAX_LEVELS);
+      if (foundInDownline) tmcPlusCount++;
+    }
+  }
+
+  if (tmcPlusCount >= criteria.requiredTmcPlus) {
+    return 'User qualifies for TMC Pro';
+  }
+  return 'User does not qualify for TMC Pro yet';
+}
+
+// Check if user qualifies for TMC Smart
+async function checkForTmcSmart(user, criteria) {
+  const { directConnections } = user;
+  let tmcProCount = 0;
+
+  for (let i = 0; i < directConnections.length; i++) {
+    const direct = directConnections[i];
+    if (direct.rank === 'TMC_PRO') {
+      tmcProCount++;
+    } else {
+      // Traverse the downline for TMC Pro rank (up to 50 levels deep)
+      const foundInDownline = await checkDownlineForRank(direct, 'TMC_PRO', MAX_LEVELS);
+      if (foundInDownline) tmcProCount++;
+    }
+  }
+
+  if (tmcProCount >= criteria.requiredTmcPro) {
+    return 'User qualifies for TMC Smart';
+  }
+  return 'User does not qualify for TMC Smart yet';
+}
+
+// Check if user qualifies for TMC Royal
+async function checkForTmcRoyal(user, criteria) {
+  const { directConnections } = user;
+  let tmcSmartCount = 0;
+
+  for (let i = 0; i < directConnections.length; i++) {
+    const direct = directConnections[i];
+    if (direct.rank === 'TMC_SMART') {
+      tmcSmartCount++;
+    } else {
+      // Traverse the downline for TMC Smart rank (up to 50 levels deep)
+      const foundInDownline = await checkDownlineForRank(direct, 'TMC_SMART', MAX_LEVELS);
+      if (foundInDownline) tmcSmartCount++;
+    }
+  }
+
+  if (tmcSmartCount >= criteria.requiredTmcSmart) {
+    return 'User qualifies for TMC Royal';
+  }
+  return 'User does not qualify for TMC Royal yet';
+}
+
+// Check if user qualifies for TMC Chief
+async function checkForTmcChief(user, criteria) {
+  const { directConnections } = user;
+  let tmcRoyalCount = 0;
+
+  for (let i = 0; i < directConnections.length; i++) {
+    const direct = directConnections[i];
+    if (direct.rank === 'TMC_ROYAL') {
+      tmcRoyalCount++;
+    } else {
+      // Traverse the downline for TMC Royal rank (up to 50 levels deep)
+      const foundInDownline = await checkDownlineForRank(direct, 'TMC_ROYAL', MAX_LEVELS);
+      if (foundInDownline) tmcRoyalCount++;
+    }
+  }
+
+  if (tmcRoyalCount >= criteria.requiredTmcRoyal) {
+    return 'User qualifies for TMC Chief';
+  }
+  return 'User does not qualify for TMC Chief yet';
+}
+
+// Check if user qualifies for TMC Ambassador
+async function checkForTmcAmbassador(user, criteria) {
+  const { directConnections } = user;
+  let tmcChiefCount = 0;
+
+  for (let i = 0; i < directConnections.length; i++) {
+    const direct = directConnections[i];
+    if (direct.rank === 'TMC_CHIEF') {
+      tmcChiefCount++;
+    } else {
+      // Traverse the downline for TMC Chief rank (up to 50 levels deep)
+      const foundInDownline = await checkDownlineForRank(direct, 'TMC_CHIEF', MAX_LEVELS);
+      if (foundInDownline) tmcChiefCount++;
+    }
+  }
+
+  if (tmcChiefCount >= criteria.requiredTmcChief) {
+    return 'User qualifies for TMC Ambassador';
+  }
+  return 'User does not qualify for TMC Ambassador yet';
+}
+
+// Recursive function to traverse downline and check for a specific rank
+async function checkDownlineForRank(direct, targetRank, level) {
+  if (level <= 0) return false;
+
+  const downlineUsers = await User.find({ referrerId: direct.id });
+
+  for (const user of downlineUsers) {
+    if (user.rank === targetRank) {
+      return true;
+    }
+
+    // Recursively check the downline
+    const found = await checkDownlineForRank(user, targetRank, level - 1);
+    if (found) return true;
+  }
+
+  return false;
+}
+
+
+
+
+const rankRewards = {
+  "TMC_PLUS": { reward: 500, flag: "isForTmcPlus" },
+  "TMC_PRO": { reward: 2000, flag: "isForTmcPro" },
+  "TMC_SMART": { reward: 5000, flag: "isForTmcSmart" },
+  "TMC_ROYAL": { reward: 50000, flag: "isForTmcRoyal" },
+  "TMC_CHIEF": { reward: 200000, flag: "isForTmcChief" },
+  "TMC_AMBASSADOR": { reward: 1000000, flag: "isForTmcAmbassador" }
+};
+
+exports.rankReward = async (req, res) => {
+  const { user } = req;
+  const { rank } = req.body;
+
+  const rewardData = rankRewards[rank];
+  if (!rewardData || user[rewardData.flag]) {
+    return res.status(400).json({ error: "Invalid rank or already rewarded" });
+  }
 
   try {
-    // Example rank qualification logic
-    const rank = totalInvestment >= 10000 ? "Gold" : "Silver"; // Example logic
+    const updateFields = {
+      rankReward: rewardData.reward,
+      [rewardData.flag]: true
+    };
 
-    res.json({
-      message: `You qualify for the ${rank} rank`,
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      { $set: updateFields },
+      { new: true }
+    );
+    
+    res.json({ message: "Rank Reward updated successfully", updatedUser });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update rank" });
+  }
+};
+
+exports.claimRankReward = async (req, res) => {
+  const { user } = req;
+  const { rank } = req.body;
+
+  const rewardData = rankRewards[rank];
+  if (!rewardData) {
+    return res.status(400).json({ error: "Invalid rank specified" });
+  }
+
+  // Check if the reward is already claimed
+  if (user[rewardData.flag]) {
+    return res.status(400).json({ error: "Reward already claimed for this rank" });
+  }
+
+  try {
+    // Update the user's balance, rank reward, and set the claim flag
+    const updateFields = {
+      balance: (user.balance || 0) + rewardData.reward,
+      rankReward: (user.rankReward || 0) + rewardData.reward,
+      [rewardData.flag]: true
+    };
+
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      { $set: updateFields },
+      { new: true }
+    );
+
+    // Get claim status of all ranks
+    const rewardStatus = Object.entries(rankRewards).map(([rank, data]) => ({
       rank,
+      reward: data.reward,
+      claimed: !!updatedUser[data.flag]
+    }));
+
+    res.status(200).json({
+      message: "Rank reward claimed successfully",
+      claimedReward: rewardData.reward,
+      totalRankReward: updatedUser.rankReward,
+      updatedBalance: updatedUser.balance,
+      rewardsStatus: rewardStatus
     });
   } catch (error) {
-    res.status(500).json({ error: "Failed to check rank qualification" });
+    console.error("Error claiming rank reward:", error);
+    res.status(500).json({ error: "Failed to claim rank reward" });
   }
 };
 
@@ -475,3 +823,4 @@ exports.calculateDailyCapping = async (req, res) => {
     res.status(500).json({ error: "Failed to calculate daily capping" });
   }
 };
+

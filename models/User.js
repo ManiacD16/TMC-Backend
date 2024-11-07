@@ -33,8 +33,8 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 10000,
   },
-  referrer: {
-    type: mongoose.Schema.Types.ObjectId,
+  directConnections: {
+    type:mongoose.Schema.Types.ObjectId,
     ref: "User",
   },
   createdAt: {
@@ -45,6 +45,22 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  firstInvestment: {
+    type: Date,
+    default: Date.now,
+  },
+  messages: [
+    {
+      message: {
+        type: String,
+        required: true,
+      },
+      timestamp: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
   tokens: [
     {
       token: {
