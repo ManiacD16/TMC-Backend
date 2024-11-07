@@ -10,7 +10,8 @@ const {
   checkRankQualification,
   calculateDailyCapping,
   getUserInvestmentTotal,
-  yieldInvest
+  yieldInvest,
+  determineRank
 } = require("../controllers/investmentController");
 const router = express.Router();
 const auth = require("../middleware/auth");
@@ -46,5 +47,7 @@ router.post("/check-rank-qualification", auth, checkRankQualification);
 router.post("/calculate-daily-capping", auth, calculateDailyCapping);
 // Route to buy yield packages
 router.post("/buy-yield-package", auth, yieldInvest);
+// calculatr rank qualification
+router.post("/calculate-rank-qualification", auth, determineRank);
 
 module.exports = router;
