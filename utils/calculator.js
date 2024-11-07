@@ -1,6 +1,6 @@
 // utils/calculator.js
 
-function calculateDailyROI(amount, dailyRate = 0.005) {
+function calculateDailyROI(amount, dailyRate = 0.008) {
   return amount * dailyRate;
 }
 
@@ -35,16 +35,18 @@ function calculateYield(amount) {
 }
 
 function calculateLevelROI(level, directReferrals, amount) {
-  let roiPercentage;
+  let roiPercentage = 0;
 
-  // ROI logic based on level and direct referrals
+  // Define ROI logic based on level and direct referrals
   if (directReferrals < 5) {
     roiPercentage = level <= 5 ? 0.1 : 0.01;
   } else {
     roiPercentage = level === 1 ? 0.1 : level <= 5 ? 0.5 : 0.02;
   }
 
-  return amount * roiPercentage;
+  const roi = amount * roiPercentage;
+
+  return { percentage: roiPercentage, value: roi };
 }
 
 module.exports = {

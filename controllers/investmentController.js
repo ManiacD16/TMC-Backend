@@ -317,76 +317,92 @@ exports.calculateLevelROI = async (req, res) => {
       return res.status(401).json({ error: "Unauthorized: User not found" });
     }
 
-    // const user = req.user; // Get the logged-in user
+    const user = req.user;
 
-    // Fetch user data from the database (e.g., level, and amount)
-    const user = await User.findById(user.id);
+    // Fetch the user's total investment (sum of all active investments)
+    const userInvestments = await Investment.aggregate([
+      { $match: { user: user._id, isActive: true } },
+      { $group: { _id: user._id, totalAmount: { $sum: "$amount" } } },
+    ]);
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    if (!userInvestments || userInvestments.length === 0) {
+      return res.status(400).json({ error: "No active investment found" });
     }
 
-    // Log the user data to debug
-    console.log("User Data:", user);
+    const amount = userInvestments[0].totalAmount; // Total active investment amount
 
-    const level = user.level; // Level from user data
-    const amount = user.amount; // Amount from user data (e.g., balance or investment)
+    // Function to calculate ROI based on level
+    const getLevelROI = (level) => {
+      let roiPercentage;
+      if (level === 1) {
+        roiPercentage = 0.1; // 10% ROI for Level 1
+      } else if (level === 2) {
+        roiPercentage = 0.1; // 10% ROI for Level 2
+      } else if (level === 3) {
+        roiPercentage = 0.1; // 10% ROI for Level 3
+      } else if (level === 4) {
+        roiPercentage = 0.1; // 10% ROI for Level 4
+      } else if (level === 5) {
+        roiPercentage = 0.1; // 10% ROI for Level 5
+      } else if (level >= 6 && level <= 50) {
+        roiPercentage = 0.01; // 1% ROI for Level 6-50
+      } else {
+        roiPercentage = 0.01; // Default ROI for any higher levels
+      }
+      return roiPercentage;
+    };
 
-    // Check if level and amount are missing or invalid
-    if (!level || !amount) {
-      return res.status(400).json({
-        error: "Missing required fields: level or amount in the user data",
-      });
-    }
-
-    // Calculate the number of direct referrals for the user
-    const directReferrals = await User.countDocuments({ referrer: user.id });
-
-    if (directReferrals === null) {
-      return res.status(400).json({
-        error: "Error counting direct referrals",
-      });
-    }
-
-    // Calculate the ROI based on the level, direct referrals, and amount
-    const roi = calculateLevelROI(level, directReferrals, amount);
-
-    // Save the investment record for the user
-    const investment = new Investment({
-      user: user.id,
+    // Function to calculate ROI recursively for all levels of referrals
+    const calculateReferralROI = async (
+      user,
+      level,
       amount,
-      roiPercentage: roi.percentage,
-      roi: roi.value,
-      type: "Level ROI",
-    });
-    await investment.save();
+      roiCalculations
+    ) => {
+      // Fetch the referrals for this user at the given level
+      const referrals = await User.find({ referrer: user._id });
 
-    // Calculate ROI for each referral
-    const referralInvestments = [];
-    const referrals = await User.find({ referrer: user.id });
+      for (const referral of referrals) {
+        const roiPercentage = getLevelROI(level); // Get ROI for this level
+        const roi = amount * roiPercentage; // Calculate ROI for this referral
 
-    for (const referral of referrals) {
-      const referralRoi = calculateLevelROI(referral.level, 0, amount);
-      const referralInvestment = new Investment({
-        user: referral.id,
-        amount, // Same investment amount as the user
-        roiPercentage: referralRoi.percentage,
-        roi: referralRoi.value,
-        type: "Referral Level ROI",
-      });
+        // Save the investment for this referral
+        const referralInvestment = new Investment({
+          user: referral._id,
+          amount,
+          roiPercentage,
+          roi,
+          type: `${level === 1 ? "Direct" : "Indirect"} Referral Level ROI`,
+        });
+        await referralInvestment.save();
 
-      await referralInvestment.save();
-      referralInvestments.push(referralInvestment);
-    }
+        // Add to ROI calculations
+        roiCalculations.push({
+          user: referral._id,
+          roiPercentage,
+          roi,
+        });
 
-    // Send the response with the calculated ROI and referral investments
+        // Now, calculate the ROI for this referral's referrals (next level)
+        await calculateReferralROI(
+          referral,
+          level + 1,
+          amount,
+          roiCalculations
+        ); // Recursively calculate for the next level
+      }
+    };
+
+    // Calculate ROI for direct referrals (Level 1)
+    const roiCalculations = [];
+
+    // Call the recursive function starting from the direct referrals (Level 1)
+    await calculateReferralROI(user, 1, amount, roiCalculations);
+
+    // Send the response with the calculated ROI for the user and referrals
     res.json({
       message: "ROI calculated successfully based on level and referrals",
-      roi: roi.value,
-      roiPercentage: roi.percentage,
-      directReferrals,
-      amount,
-      referralInvestments,
+      roiCalculations,
     });
   } catch (error) {
     console.error(error);
