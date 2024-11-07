@@ -247,6 +247,96 @@ if (newActiveInvestmentTotal > 10000) {
     res.status(500).json({ error: error.message });
   }
 };
+exports.yieldInvest = async (req, res) => {
+  const { amount, packageType } = req.body;
+
+  try {
+    // Fetch the user based on the ID in the JWT
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Ensure that the amount is a valid number (it could be a string from the request)
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount)) {
+      return res.status(400).json({ error: "Stake amount must be a valid number" });
+    }
+
+    // Check if the investment amount is within the allowed range (before package adjustments)
+    if (numericAmount < 50 || numericAmount > 10000) {
+      return res.status(400).json({
+        error: "Stake amount must be between $50 and $10,000",
+      });
+    }
+
+    // Set up the actual investment amounts based on the selected package
+    let actualInvestment = 0;
+    switch (packageType) {
+      case 'BASIC':
+        actualInvestment = 1000; // Package yields $1,000 actual for $950
+        break;
+      case 'STANDARD':
+        actualInvestment = 5000; // Package yields $5,000 actual for $4,500
+        break;
+      case 'PREMIUM':
+        actualInvestment = 10000; // Package yields $10,000 actual for $8,500
+        break;
+      default:
+        return res.status(400).json({ error: "Invalid package type" });
+    }
+
+    // Calculate the liquidity fee (1% of the investment amount)
+    const liquidityFee = calculateLiquidityFee(numericAmount);
+    const totalAmountRequired = numericAmount + liquidityFee;
+
+    // Create a new investment record
+    const investment = new Investment({
+      user: user._id,
+      amount: numericAmount, // The amount user intends to invest
+      packageType,
+      liquidityFee,
+      actualInvestment, // Actual investment value based on the package
+      isActive: true,
+    });
+
+    // Fetch the updated total active investment for the user
+    const activeInvestments = await Investment.aggregate([
+      { $match: { user: user.id, isActive: true } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ]);
+
+    const activeInvestmentTotal = activeInvestments[0]?.total || 0;
+    const newActiveInvestmentTotal = activeInvestmentTotal + numericAmount;
+
+    if (newActiveInvestmentTotal > 10000) {
+      return res.status(400).json({
+        error: "Total active stake cannot exceed $10,000",
+      });
+    }
+
+    await investment.save(); // Save the new investment
+
+    // Update the user's total investment (investmentTotal) by adding the current investment amount
+    user.investmentTotal += numericAmount; // Ensure it's adding a number
+    user.firstInvestment = new Date();
+    await user.save(); // Save the updated total investment
+
+    // Return the updated total active investment and other details to the frontend
+    res.json({
+      message: "Staking successful",
+      newActiveInvestmentTotal, // Send the updated total active investment
+      liquidityFee,
+      actualInvestment, // Send the actual investment value based on the package
+      userInvestmentTotal: user.investmentTotal, // Send total investment
+    });
+  } catch (error) {
+    console.error("Staking Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 
 exports.getUserInvestmentTotal = async (req, res) => {
   try {
