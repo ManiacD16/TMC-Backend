@@ -11,32 +11,42 @@ exports.register = async (req, res) => {
   }
 
   try {
+    // Check if the user already exists
     const userExist = await User.findOne({ email });
 
     if (userExist) {
       return res.status(409).json({ error: "Email already exists" });
     }
 
-    // const hashedPassword = await bcrypt.hash(password, 10);
-    // const user = new User({ email, password: hashedPassword });
+    let referrer = null;
 
+    // If there's a referral email, find the referrer user
     if (referralEmail) {
-      const referrer = await User.findOne({ email: referralEmail });
+      referrer = await User.findOne({ email: referralEmail });
       if (referrer) {
-        referrer.balance += 10; // Example bonus amount; adjust as needed
+        referrer.balance += 10; // Example: Give bonus amount to referrer
         await referrer.save();
-        user.referrer = referrer._id;
+      } else {
+        return res.status(400).json({ error: "Referral email not found" });
       }
     }
 
-    const user = new User({
+    // Now create the user object and hash the password if necessary
+    // const hashedPassword = await bcrypt.hash(password, 10); // Uncomment if you are hashing the password
+    const newUser = new User({
       email,
-      password,
-      //   : hashedPassword
+      password, // Use hashed password here
+      referrer: referrer ? referrer._id : null, // Assign referrer if exists
     });
 
-    await user.save();
-    res.status(201).json({ message: "User registered successfully" });
+    await newUser.save(); // Save the new user to the database
+
+    // Respond back with a success message
+    res.status(201).json({
+      message: "User registered successfully",
+      // Optionally, you can also send back the user's details or token
+      // token: generateAuthToken(newUser), // Make sure you generate a JWT token or any auth token here
+    });
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({ error: "Registration failed. Please try again." });
