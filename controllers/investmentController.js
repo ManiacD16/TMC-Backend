@@ -197,6 +197,8 @@ exports.updateDailyROI = async (req, res) => {
 //     res.status(500).json({ error: "Failed to withdraw funds" });
 //   }
 // };
+// const { ethers } = require("ethers");
+
 exports.withdraw = async (req, res) => {
   const { amount, userAddress } = req.body; // amount to withdraw and user's address
 
@@ -219,33 +221,26 @@ exports.withdraw = async (req, res) => {
     user.balance -= amount;
     await user.save();
 
-    // If the token is ERC-20 (not native currency), interact with the ERC-20 contract
     // Define the ERC-20 token contract ABI
     const tokenAbi = [
       "function transfer(address to, uint256 amount) public returns (bool)",
     ];
 
     // Create an instance of the token contract using ethers.js
-    const tokenContract = new ethers.Contract(tokenAbi, adminWallet);
+    const tokenContract = new ethers.Contract(
+      process.env.TOKEN_CONTRACT_ADDRESS, // Replace with actual token contract address
+      tokenAbi,
+      adminWallet // Signer
+    );
 
     // Convert the amount to the smallest unit (Wei) for the token (adjust decimals as needed)
     const amountInWei = ethers.utils.parseUnits(amount.toString(), 18); // Assuming 18 decimals
 
-    // Create the transaction object for token transfer
-    const tx = {
-      to: userAddress,
-      value: 0, // No value in native currency (BNB/ETH), since it's a token transfer
-      data: tokenContract.interface.encodeFunctionData("transfer", [
-        userAddress,
-        amountInWei,
-      ]),
-    };
-
-    // Send the transaction to the smart contract (if it's an ERC-20 token)
-    const transaction = await adminWallet.sendTransaction(tx);
+    // Execute the transfer
+    const tx = await tokenContract.transfer(userAddress, amountInWei);
 
     // Wait for the transaction to be confirmed
-    await transaction.wait();
+    await tx.wait();
 
     // Respond with the updated balance
     res.json({ success: true, balance: user.balance });
@@ -703,7 +698,7 @@ exports.determineRank = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const { rank } = user;
+    const rank = user.rank || "Regular";
 
     switch (rank) {
       case "Regular":
