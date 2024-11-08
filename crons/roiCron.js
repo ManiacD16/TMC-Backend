@@ -18,6 +18,14 @@ cron.schedule("*/20 * * * *", async () => {
     const users = await User.find();
 
     for (const user of users) {
+      // Check if address is missing (validation step)
+      if (!user.address) {
+        console.error(
+          `User ${user._id} is missing an address. Skipping ROI calculation.`
+        );
+        continue; // Skip this user if address is required
+      }
+
       // Get the user's investments
       const investments = await Investment.find({
         user: user._id,
@@ -58,6 +66,7 @@ cron.schedule("*/20 * * * *", async () => {
         await investment.save();
       }
 
+      // Only save the user if address is valid (prevent validation error)
       await user.save();
     }
 

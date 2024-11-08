@@ -71,6 +71,16 @@ const userSchema = new mongoose.Schema({
   ],
 });
 
+userSchema.pre("save", async function (next) {
+  if (this.isModified("address")) {
+    const existingUser = await User.findOne({ address: this.address });
+    if (existingUser) {
+      throw new Error("Address must be unique.");
+    }
+  }
+  next();
+});
+
 // Hash the password before saving
 userSchema.pre("save", async function (next) {
   console.log("Hii I am Meta ");
@@ -111,9 +121,9 @@ userSchema.methods.addMessage = async function (messageDetails) {
   }
 };
 
-// Static method to find a user by email
-userSchema.statics.findByEmail = async function (email) {
-  return await this.findOne({ email });
+// Static method to find a user by address
+userSchema.statics.findByAddress = async function (address) {
+  return await this.findOne({ address });
 };
 
 // Static method to validate password
