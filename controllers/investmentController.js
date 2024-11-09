@@ -1192,7 +1192,7 @@ async function checkDownlineForRank(direct, targetRank, level) {
 }
 
 const rankRewards = {
-  REGULAR: {reward: 0, flag: "isForRegular"},
+  REGULAR: { reward: 0, flag: "isForRegular" },
   TMC_PLUS: { reward: 500, flag: "isForTmcPlus" },
   TMC_PRO: { reward: 2000, flag: "isForTmcPro" },
   TMC_SMART: { reward: 5000, flag: "isForTmcSmart" },
@@ -1205,7 +1205,7 @@ exports.rankReward = async (req, res) => {
   const { user } = req;
   // const { rank } = req.body;
 
-  console.log("user ", user.rank)
+  console.log("user ", user.rank);
 
   const rewardData = rankRewards[user.rank.toUpperCase()];
   if (!rewardData || user[rewardData.flag]) {
@@ -1224,7 +1224,12 @@ exports.rankReward = async (req, res) => {
       { new: true }
     );
 
-    res.json({ message: "Rank Reward updated successfully", rank: user.rank, updatedUser });
+    res.json({
+      message: "Rank Reward updated successfully",
+      rank: user.rank,
+      rankReward: rewardData.reward,
+      updatedUser,
+    });
   } catch (error) {
     res.status(500).json({ error: "Failed to update rank" });
   }
