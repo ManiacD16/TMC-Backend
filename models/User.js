@@ -2,6 +2,16 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
+const rankEnum = [
+  "Regular",
+  "TMC_PLUS",
+  "TMC_PRO",
+  "TMC_SMART",
+  "TMC_ROYAL",
+  "TMC_CHIEF",
+  "TMC_AMBASSADOR",
+];
+
 const userSchema = new mongoose.Schema({
   address: {
     type: String,
@@ -36,6 +46,11 @@ const userSchema = new mongoose.Schema({
   directConnections: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
+  },
+  rank: {
+    type: String,
+    enum: rankEnum, // Enum ensures that the rank is only one of the valid values
+    default: "Regular", // Default rank if not specified
   },
   createdAt: {
     type: Date,

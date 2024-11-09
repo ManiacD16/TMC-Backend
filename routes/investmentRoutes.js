@@ -52,6 +52,6 @@ router.post("/calculate-daily-capping", auth, calculateDailyCapping);
 // Route to buy yield packages
 router.post("/buy-yield-package", auth, yieldInvest);
 // calculatr rank qualification
-router.post("/calculate-rank-qualification", auth, determineRank);
-
+router.get("/determineRank", auth, determineRank);
+// router.get("/api/determineRank", determineRank);
 module.exports = router;

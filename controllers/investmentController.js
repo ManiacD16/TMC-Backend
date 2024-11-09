@@ -698,6 +698,11 @@ exports.determineRank = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    // If the user has no directConnections, set rank to "Regular"
+    if (!user.directConnections || user.directConnections.length === 0) {
+      return res.json({ rank: "Regular" });
+    }
+
     const rank = user.rank || "Regular";
 
     switch (rank) {
@@ -728,11 +733,39 @@ exports.determineRank = async (req, res) => {
 
 // Check if user qualifies for TMC Plus
 function checkForTmcPlus(user, criteria) {
+  // Ensure the user object has directConnections and it's an array
+  if (!user || !Array.isArray(user.directConnections)) {
+    console.error("Invalid or missing directConnections for user:", user._id);
+    return "Error: User directConnections are missing or invalid.";
+  }
+
   const { directConnections, firstInvestment } = user;
+
+  // Ensure firstInvestment is a valid date
+  if (!firstInvestment || isNaN(new Date(firstInvestment).getTime())) {
+    console.error("Invalid firstInvestment date for user:", user._id);
+    return "Error: Invalid firstInvestment date.";
+  }
+
   const currentDate = new Date();
   const daysSinceRegistration = Math.floor(
-    (currentDate - firstInvestment) / (1000 * 60 * 60 * 24)
+    (currentDate - new Date(firstInvestment)) / (1000 * 60 * 60 * 24)
   );
+
+  console.log(
+    `User ${user._id} has been registered for ${daysSinceRegistration} days.`
+  );
+
+  // Ensure criteria are valid
+  if (
+    !criteria ||
+    !criteria.initialTimeframe ||
+    !criteria.nextTimeframe ||
+    !criteria.finalTimeframe
+  ) {
+    console.error("Invalid criteria for TMC_PLUS:", criteria);
+    return "Error: Invalid criteria.";
+  }
 
   // Filter referrals based on their registration date within specific timeframes
   const initialReferrals = directConnections.filter(
@@ -760,6 +793,10 @@ function checkForTmcPlus(user, criteria) {
       referral.firstInvestment <= criteria.finalTimeframe
   );
 
+  console.log("Initial referrals:", initialReferrals.length);
+  console.log("Next referrals:", nextReferrals.length);
+  console.log("Final referrals:", finalReferrals.length);
+
   // Check if the referrals meet the required thresholds for TMC_PLUS
   if (
     initialReferrals.length >= criteria.initialDirectConnections &&
@@ -774,150 +811,383 @@ function checkForTmcPlus(user, criteria) {
 
 // Check if user qualifies for TMC Pro
 async function checkForTmcPro(user, criteria) {
+  // Ensure the user object has directConnections and it's an array
+  if (!user || !Array.isArray(user.directConnections)) {
+    console.error("Invalid or missing directConnections for user:", user._id);
+    return "Error: User directConnections are missing or invalid.";
+  }
+
   const { directConnections } = user;
   let tmcPlusCount = 0;
 
+  // Validate that criteria is correct
+  if (!criteria || typeof criteria.requiredTmcPlus !== "number") {
+    console.error("Invalid criteria for TMC Pro:", criteria);
+    return "Error: Invalid criteria for TMC Pro.";
+  }
+
+  console.log(`User ${user._id} is checking for TMC Pro qualification...`);
+
+  // Traverse each direct connection
   for (let i = 0; i < directConnections.length; i++) {
     const direct = directConnections[i];
+
+    // Ensure that direct connection has the rank property
+    if (!direct || !direct.rank) {
+      console.warn(
+        `Direct connection ${direct._id} is missing rank information.`
+      );
+      continue; // Skip this direct connection if rank is missing
+    }
+
+    // Check if the direct connection has the "TMC_PLUS" rank
     if (direct.rank === "TMC_PLUS") {
       tmcPlusCount++;
+      console.log(`Direct connection ${direct._id} qualifies for TMC_PLUS.`);
     } else {
-      // Traverse the downline for TMC Plus rank (up to 50 levels deep)
-      const foundInDownline = await checkDownlineForRank(
-        direct,
-        "TMC_PLUS",
-        MAX_LEVELS
-      );
-      if (foundInDownline) tmcPlusCount++;
+      // Traverse the downline for TMC Plus rank (up to MAX_LEVELS deep)
+      try {
+        const foundInDownline = await checkDownlineForRank(
+          direct,
+          "TMC_PLUS",
+          MAX_LEVELS
+        );
+        if (foundInDownline) {
+          tmcPlusCount++;
+          console.log(
+            `Downline of direct connection ${direct._id} qualifies for TMC_PLUS.`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Error checking downline for TMC_PLUS in direct connection ${direct._id}:`,
+          error
+        );
+        return "Error: Failed to check downline for TMC_PLUS.";
+      }
     }
   }
 
+  console.log(`Total TMC_PLUS found: ${tmcPlusCount}`);
+
+  // Check if the user qualifies for TMC Pro based on the required count
   if (tmcPlusCount >= criteria.requiredTmcPlus) {
     return "User qualifies for TMC Pro";
   }
+
   return "User does not qualify for TMC Pro yet";
 }
 
 // Check if user qualifies for TMC Smart
 async function checkForTmcSmart(user, criteria) {
+  // Ensure user and directConnections are valid
+  if (!user || !Array.isArray(user.directConnections)) {
+    console.error("Invalid or missing directConnections for user:", user._id);
+    return "Error: User directConnections are missing or invalid.";
+  }
+
   const { directConnections } = user;
   let tmcProCount = 0;
 
+  // Validate criteria to ensure requiredTmcPro is a valid number
+  if (!criteria || typeof criteria.requiredTmcPro !== "number") {
+    console.error("Invalid criteria for TMC Smart:", criteria);
+    return "Error: Invalid criteria for TMC Smart.";
+  }
+
+  console.log(`User ${user._id} is checking for TMC Smart qualification...`);
+
+  // Traverse each direct connection
   for (let i = 0; i < directConnections.length; i++) {
     const direct = directConnections[i];
+
+    // Ensure direct connection has the rank property
+    if (!direct || !direct.rank) {
+      console.warn(
+        `Direct connection ${direct._id} is missing rank information.`
+      );
+      continue; // Skip this direct connection if rank is missing
+    }
+
+    // Check if the direct connection has the "TMC_PRO" rank
     if (direct.rank === "TMC_PRO") {
       tmcProCount++;
+      console.log(`Direct connection ${direct._id} qualifies for TMC_PRO.`);
     } else {
-      // Traverse the downline for TMC Pro rank (up to 50 levels deep)
-      const foundInDownline = await checkDownlineForRank(
-        direct,
-        "TMC_PRO",
-        MAX_LEVELS
-      );
-      if (foundInDownline) tmcProCount++;
+      // Traverse the downline for TMC Pro rank (up to MAX_LEVELS deep)
+      try {
+        const foundInDownline = await checkDownlineForRank(
+          direct,
+          "TMC_PRO",
+          MAX_LEVELS
+        );
+        if (foundInDownline) {
+          tmcProCount++;
+          console.log(
+            `Downline of direct connection ${direct._id} qualifies for TMC_PRO.`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Error checking downline for TMC_PRO in direct connection ${direct._id}:`,
+          error
+        );
+        return "Error: Failed to check downline for TMC_PRO.";
+      }
     }
   }
 
+  console.log(`Total TMC_PRO found: ${tmcProCount}`);
+
+  // Check if the user qualifies for TMC Smart based on the required count
   if (tmcProCount >= criteria.requiredTmcPro) {
     return "User qualifies for TMC Smart";
   }
+
   return "User does not qualify for TMC Smart yet";
 }
 
 // Check if user qualifies for TMC Royal
 async function checkForTmcRoyal(user, criteria) {
+  // Ensure user and directConnections are valid
+  if (!user || !Array.isArray(user.directConnections)) {
+    console.error("Invalid or missing directConnections for user:", user._id);
+    return "Error: User directConnections are missing or invalid.";
+  }
+
   const { directConnections } = user;
   let tmcSmartCount = 0;
 
+  // Validate criteria to ensure requiredTmcSmart is a valid number
+  if (!criteria || typeof criteria.requiredTmcSmart !== "number") {
+    console.error("Invalid criteria for TMC Royal:", criteria);
+    return "Error: Invalid criteria for TMC Royal.";
+  }
+
+  console.log(`User ${user._id} is checking for TMC Royal qualification...`);
+
+  // Traverse each direct connection
   for (let i = 0; i < directConnections.length; i++) {
     const direct = directConnections[i];
+
+    // Ensure direct connection has the rank property
+    if (!direct || !direct.rank) {
+      console.warn(
+        `Direct connection ${direct._id} is missing rank information.`
+      );
+      continue; // Skip this direct connection if rank is missing
+    }
+
+    // Check if the direct connection has the "TMC_SMART" rank
     if (direct.rank === "TMC_SMART") {
       tmcSmartCount++;
+      console.log(`Direct connection ${direct._id} qualifies for TMC_SMART.`);
     } else {
-      // Traverse the downline for TMC Smart rank (up to 50 levels deep)
-      const foundInDownline = await checkDownlineForRank(
-        direct,
-        "TMC_SMART",
-        MAX_LEVELS
-      );
-      if (foundInDownline) tmcSmartCount++;
+      // Traverse the downline for TMC Smart rank (up to MAX_LEVELS deep)
+      try {
+        const foundInDownline = await checkDownlineForRank(
+          direct,
+          "TMC_SMART",
+          MAX_LEVELS
+        );
+        if (foundInDownline) {
+          tmcSmartCount++;
+          console.log(
+            `Downline of direct connection ${direct._id} qualifies for TMC_SMART.`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Error checking downline for TMC_SMART in direct connection ${direct._id}:`,
+          error
+        );
+        return "Error: Failed to check downline for TMC_SMART.";
+      }
     }
   }
 
+  console.log(`Total TMC_SMART found: ${tmcSmartCount}`);
+
+  // Check if the user qualifies for TMC Royal based on the required count
   if (tmcSmartCount >= criteria.requiredTmcSmart) {
     return "User qualifies for TMC Royal";
   }
+
   return "User does not qualify for TMC Royal yet";
 }
 
 // Check if user qualifies for TMC Chief
 async function checkForTmcChief(user, criteria) {
+  // Ensure user and directConnections are valid
+  if (!user || !Array.isArray(user.directConnections)) {
+    console.error("Invalid or missing directConnections for user:", user._id);
+    return "Error: User directConnections are missing or invalid.";
+  }
+
   const { directConnections } = user;
   let tmcRoyalCount = 0;
 
+  // Validate criteria to ensure requiredTmcRoyal is a valid number
+  if (!criteria || typeof criteria.requiredTmcRoyal !== "number") {
+    console.error("Invalid criteria for TMC Chief:", criteria);
+    return "Error: Invalid criteria for TMC Chief.";
+  }
+
+  console.log(`User ${user._id} is checking for TMC Chief qualification...`);
+
+  // Traverse each direct connection
   for (let i = 0; i < directConnections.length; i++) {
     const direct = directConnections[i];
+
+    // Ensure direct connection has the rank property
+    if (!direct || !direct.rank) {
+      console.warn(
+        `Direct connection ${direct._id} is missing rank information.`
+      );
+      continue; // Skip this direct connection if rank is missing
+    }
+
+    // Check if the direct connection has the "TMC_ROYAL" rank
     if (direct.rank === "TMC_ROYAL") {
       tmcRoyalCount++;
+      console.log(`Direct connection ${direct._id} qualifies for TMC_ROYAL.`);
     } else {
-      // Traverse the downline for TMC Royal rank (up to 50 levels deep)
-      const foundInDownline = await checkDownlineForRank(
-        direct,
-        "TMC_ROYAL",
-        MAX_LEVELS
-      );
-      if (foundInDownline) tmcRoyalCount++;
+      // Traverse the downline for TMC Royal rank (up to MAX_LEVELS deep)
+      try {
+        const foundInDownline = await checkDownlineForRank(
+          direct,
+          "TMC_ROYAL",
+          MAX_LEVELS
+        );
+        if (foundInDownline) {
+          tmcRoyalCount++;
+          console.log(
+            `Downline of direct connection ${direct._id} qualifies for TMC_ROYAL.`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Error checking downline for TMC_ROYAL in direct connection ${direct._id}:`,
+          error
+        );
+        return "Error: Failed to check downline for TMC_ROYAL.";
+      }
     }
   }
 
+  console.log(`Total TMC_ROYAL found: ${tmcRoyalCount}`);
+
+  // Check if the user qualifies for TMC Chief based on the required count
   if (tmcRoyalCount >= criteria.requiredTmcRoyal) {
     return "User qualifies for TMC Chief";
   }
+
   return "User does not qualify for TMC Chief yet";
 }
 
 // Check if user qualifies for TMC Ambassador
 async function checkForTmcAmbassador(user, criteria) {
+  // Ensure user and directConnections are valid
+  if (!user || !Array.isArray(user.directConnections)) {
+    console.error("Invalid or missing directConnections for user:", user._id);
+    return "Error: User directConnections are missing or invalid.";
+  }
+
   const { directConnections } = user;
   let tmcChiefCount = 0;
 
+  // Validate criteria to ensure requiredTmcChief is a valid number
+  if (!criteria || typeof criteria.requiredTmcChief !== "number") {
+    console.error("Invalid criteria for TMC Ambassador:", criteria);
+    return "Error: Invalid criteria for TMC Ambassador.";
+  }
+
+  console.log(
+    `User ${user._id} is checking for TMC Ambassador qualification...`
+  );
+
+  // Traverse each direct connection
   for (let i = 0; i < directConnections.length; i++) {
     const direct = directConnections[i];
+
+    // Ensure direct connection has the rank property
+    if (!direct || !direct.rank) {
+      console.warn(
+        `Direct connection ${direct._id} is missing rank information.`
+      );
+      continue; // Skip this direct connection if rank is missing
+    }
+
+    // Check if the direct connection has the "TMC_CHIEF" rank
     if (direct.rank === "TMC_CHIEF") {
       tmcChiefCount++;
+      console.log(`Direct connection ${direct._id} qualifies for TMC_CHIEF.`);
     } else {
-      // Traverse the downline for TMC Chief rank (up to 50 levels deep)
-      const foundInDownline = await checkDownlineForRank(
-        direct,
-        "TMC_CHIEF",
-        MAX_LEVELS
-      );
-      if (foundInDownline) tmcChiefCount++;
+      // Traverse the downline for TMC Chief rank (up to MAX_LEVELS deep)
+      try {
+        const foundInDownline = await checkDownlineForRank(
+          direct,
+          "TMC_CHIEF",
+          MAX_LEVELS
+        );
+        if (foundInDownline) {
+          tmcChiefCount++;
+          console.log(
+            `Downline of direct connection ${direct._id} qualifies for TMC_CHIEF.`
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Error checking downline for TMC_CHIEF in direct connection ${direct._id}:`,
+          error
+        );
+        return "Error: Failed to check downline for TMC_CHIEF.";
+      }
     }
   }
 
+  console.log(`Total TMC_CHIEF found: ${tmcChiefCount}`);
+
+  // Check if the user qualifies for TMC Ambassador based on the required count
   if (tmcChiefCount >= criteria.requiredTmcChief) {
     return "User qualifies for TMC Ambassador";
   }
+
   return "User does not qualify for TMC Ambassador yet";
 }
 
 // Recursive function to traverse downline and check for a specific rank
 async function checkDownlineForRank(direct, targetRank, level) {
+  // If we've reached the max depth, stop the recursion
   if (level <= 0) return false;
 
-  const downlineUsers = await User.find({ referrerId: direct.id });
+  // Ensure 'direct' is a valid user object
+  if (!direct || !direct._id) {
+    console.error("Invalid direct user object:", direct);
+    return false;
+  }
 
+  // Find downline users based on the referrerId (or equivalent field)
+  const downlineUsers = await User.find({ referrerId: direct._id });
+
+  // Traverse through the downline users
   for (const user of downlineUsers) {
+    // If we find the target rank, return true
     if (user.rank === targetRank) {
+      console.log(`User ${user._id} qualifies for ${targetRank}.`);
       return true;
     }
 
-    // Recursively check the downline
-    const found = await checkDownlineForRank(user, targetRank, level - 1);
-    if (found) return true;
+    // Recursively check this user's downline
+    const foundInDownline = await checkDownlineForRank(
+      user,
+      targetRank,
+      level - 1
+    );
+    if (foundInDownline) return true;
   }
 
+  // If no user with the target rank was found in the downline, return false
   return false;
 }
 
