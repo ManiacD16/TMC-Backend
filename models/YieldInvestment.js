@@ -9,6 +9,7 @@ const YieldInvestmentSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   hasInitiated: {type: Boolean, default: false},
   actualInvestment: {type: Number, default: 0},
+  daysAccumulated: {type: Number, default: 0},
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });

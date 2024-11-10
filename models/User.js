@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  yieldBalance:{
+    type: Number,
+    default: 0
+  },
   investmentTotal: {
     type: Number,
     default: 0,

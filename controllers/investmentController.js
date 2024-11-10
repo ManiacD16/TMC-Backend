@@ -380,6 +380,7 @@ exports.yieldInvest = async (req, res) => {
       liquidityFee,
       isActive: true,
       hasInitiated: true,
+      daysAccumulated: 0,
       actualInvestment, // Actual investment value based on the package
     });
 

@@ -20,7 +20,7 @@ connectDB();
 // Middleware for CORS
 app.use(
   cors({
-    origin: "http://localhost:5173", // Allow requests from this origin
+    origin: "http://localhost:5174", // Allow requests from this origin
     // origin: "https://tmc-omega.vercel.app",
     credentials: true, // Allow credentials (like cookies)
   })
