@@ -164,8 +164,7 @@ exports.updateDailyROI = async (req, res) => {
     const investments = await Investment.find({ user: req.user.id });
     for (let investment of investments) {
       investment.dailyROI = calculateDailyROI(investment.amount, req.user);
-      await i;
-      nvestment.save();
+      await investment.save();
     }
     res.json({ message: "Daily ROI updated successfully" });
   } catch (error) {
@@ -212,14 +211,13 @@ exports.withdraw = async (req, res) => {
     }
 
     // Check if the user has enough balance to withdraw
-    if(req.body.key === "invest_withdraw"){
+    if (req.body.key === "invest_withdraw") {
       if (user.balance < amount) {
         return res
           .status(400)
           .json({ success: false, error: "Insufficient balance." });
       }
-    }
-    else if(req.body.key === "yield_withdraw"){
+    } else if (req.body.key === "yield_withdraw") {
       if (user.yieldBalance < amount) {
         return res
           .status(400)
@@ -248,17 +246,20 @@ exports.withdraw = async (req, res) => {
     // Wait for the transaction to be confirmed
     await tx.wait();
 
-     // Deduct the withdrawal amount from the user's balance
-    if(req.body.key === "invest_withdraw"){
+    // Deduct the withdrawal amount from the user's balance
+    if (req.body.key === "invest_withdraw") {
       user.balance -= amount;
-    }
-    else if(req.body.key === "yield_withdraw"){
+    } else if (req.body.key === "yield_withdraw") {
       user.yieldBalance -= amount;
     }
     await user.save();
 
     // Respond with the updated balance
-    res.json({ success: true, balance: req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance});
+    res.json({
+      success: true,
+      balance:
+        req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance,
+    });
   } catch (error) {
     console.error("Error processing withdrawal:", error);
     res.status(500).json({ success: false, error: "Withdrawal failed." });
@@ -355,7 +356,12 @@ exports.yieldInvest = async (req, res) => {
     }
 
     // Check if the investment amount is within the allowed range (before package adjustments)
-    if (numericAmount === 1000 || numericAmount === 5000 || numericAmount === 10000 || numericAmount === 25000) {
+    if (
+      numericAmount === 1000 ||
+      numericAmount === 5000 ||
+      numericAmount === 10000 ||
+      numericAmount === 25000
+    ) {
       return res.status(400).json({
         error: "Stake amount must be between $100 and $25,000",
       });
