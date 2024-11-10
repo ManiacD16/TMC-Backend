@@ -13,6 +13,7 @@ const {
   yieldInvest,
   determineRank,
   getUserBalance,
+  getyieldBalance,
 } = require("../controllers/investmentController");
 const router = express.Router();
 const auth = require("../middleware/auth");
@@ -43,6 +44,8 @@ router.get("/total-investment", auth, getUserInvestmentTotal);
 // Fetch user balance
 router.get("/balance", auth, getUserBalance);
 
+// Fetch user balance
+router.get("/yield-balance", auth, getyieldBalance);
 // Route to check rankReward
 router.get("/rank-reward", auth, rankReward);
 
