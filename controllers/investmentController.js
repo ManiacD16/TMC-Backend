@@ -3,7 +3,7 @@ require("dotenv").config(); // This loads variables from .env into process.env
 const Investment = require("../models/investment");
 const YieldInvestment = require("../models/YieldInvestment");
 const { ethers } = require("ethers");
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient, ObjectId } = require("mongodb");
 // BSC testnet RPC endpoint
 const provider = new ethers.providers.JsonRpcProvider(
   "https://data-seed-prebsc-1-s1.binance.org:8545"
@@ -289,7 +289,7 @@ exports.invest = async (req, res) => {
       amount: numericAmount,
       packageType,
       liquidityFee,
-      isActive: true
+      isActive: true,
     });
 
     // Save the investment record
@@ -316,7 +316,7 @@ exports.invest = async (req, res) => {
 function checkInitiation(user, next) {
   const userId = req.body.userId;
   if (users[userId] && users[userId].hasInitiated) {
-      return res.status(400).json({ error: "Yield package already initiated." });
+    return res.status(400).json({ error: "Yield package already initiated." });
   }
   next();
 }
@@ -332,8 +332,6 @@ exports.yieldInvest = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    
-
     // Ensure that the amount is a valid number (it could be a string from the request)
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount)) {
@@ -343,9 +341,9 @@ exports.yieldInvest = async (req, res) => {
     }
 
     // Check if the investment amount is within the allowed range (before package adjustments)
-    if (numericAmount < 50 || numericAmount > 10000) {
+    if (numericAmount < 100 || numericAmount > 25000) {
       return res.status(400).json({
-        error: "Stake amount must be between $50 and $10,000",
+        error: "Stake amount must be between $100 and $25,000",
       });
     }
 
@@ -360,6 +358,9 @@ exports.yieldInvest = async (req, res) => {
         break;
       case "PREMIUM":
         actualInvestment = 10000; // Package yields $10,000 actual for $8,500
+        break;
+      case "ROYAL":
+        actualInvestment = 25000; // Package yields $10,000 actual for $8,500
         break;
       default:
         return res.status(400).json({ error: "Invalid package type" });
