@@ -212,10 +212,19 @@ exports.withdraw = async (req, res) => {
     }
 
     // Check if the user has enough balance to withdraw
-    if (user.balance < amount) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Insufficient balance." });
+    if(req.body.key === "invest_withdraw"){
+      if (user.balance < amount) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Insufficient balance." });
+      }
+    }
+    else if(req.body.key === "yield_withdraw"){
+      if (user.yieldBalance < amount) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Insufficient balance." });
+      }
     }
 
     // Define the ERC-20 token contract ABI
@@ -240,11 +249,16 @@ exports.withdraw = async (req, res) => {
     await tx.wait();
 
      // Deduct the withdrawal amount from the user's balance
-    user.balance -= amount;
+    if(req.body.key === "invest_withdraw"){
+      user.balance -= amount;
+    }
+    else if(req.body.key === "yield_withdraw"){
+      user.yieldBalance -= amount;
+    }
     await user.save();
 
     // Respond with the updated balance
-    res.json({ success: true, balance: user.balance });
+    res.json({ success: true, balance: req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance});
   } catch (error) {
     console.error("Error processing withdrawal:", error);
     res.status(500).json({ success: false, error: "Withdrawal failed." });
