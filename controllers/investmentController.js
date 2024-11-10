@@ -1,8 +1,9 @@
 const User = require("../models/User");
 require("dotenv").config(); // This loads variables from .env into process.env
 const Investment = require("../models/investment");
+const YieldInvestment = require("../models/YieldInvestment");
 const { ethers } = require("ethers");
-
+const { MongoClient, ObjectId } = require('mongodb');
 // BSC testnet RPC endpoint
 const provider = new ethers.providers.JsonRpcProvider(
   "https://data-seed-prebsc-1-s1.binance.org:8545"
@@ -288,7 +289,7 @@ exports.invest = async (req, res) => {
       amount: numericAmount,
       packageType,
       liquidityFee,
-      isActive: true,
+      isActive: true
     });
 
     // Save the investment record
@@ -312,6 +313,14 @@ exports.invest = async (req, res) => {
   }
 };
 
+function checkInitiation(user, next) {
+  const userId = req.body.userId;
+  if (users[userId] && users[userId].hasInitiated) {
+      return res.status(400).json({ error: "Yield package already initiated." });
+  }
+  next();
+}
+
 exports.yieldInvest = async (req, res) => {
   const { amount, packageType } = req.body;
 
@@ -322,6 +331,8 @@ exports.yieldInvest = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+
+    
 
     // Ensure that the amount is a valid number (it could be a string from the request)
     const numericAmount = parseFloat(amount);
@@ -359,13 +370,15 @@ exports.yieldInvest = async (req, res) => {
     const totalAmountRequired = numericAmount + liquidityFee;
 
     // Create a new investment record
-    const investment = new Investment({
-      user: user._id,
+    const investment = new YieldInvestment({
+      _id: new ObjectId(),
+      userId: user._id,
       amount: numericAmount, // The amount user intends to invest
       packageType,
       liquidityFee,
-      actualInvestment, // Actual investment value based on the package
       isActive: true,
+      hasInitiated: true,
+      actualInvestment, // Actual investment value based on the package
     });
 
     // Fetch the updated total active investment for the user
@@ -392,7 +405,7 @@ exports.yieldInvest = async (req, res) => {
 
     // Return the updated total active investment and other details to the frontend
     res.json({
-      message: "Staking successful",
+      message: "Yield Staking successful",
       newActiveInvestmentTotal, // Send the updated total active investment
       liquidityFee,
       actualInvestment, // Send the actual investment value based on the package
