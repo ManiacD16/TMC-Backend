@@ -16,7 +16,6 @@ const {
 } = require("../controllers/investmentController");
 const router = express.Router();
 const auth = require("../middleware/auth");
-const CheckYieldInitiation = require("../middleware/checkYieldInitiation.js")
 // Route to fetch daily ROI for the authenticated user
 router.get("/daily-roi", auth, fetchDailyROI);
 
@@ -50,7 +49,7 @@ router.get("/rank-reward", auth, rankReward);
 // Route to calculate daily capping for returns
 router.post("/calculate-daily-capping", auth, calculateDailyCapping);
 // Route to buy yield packages
-router.post("/buy-yield-package", auth, CheckYieldInitiation, yieldInvest);
+router.post("/buy-yield-package", auth, yieldInvest);
 // calculatr rank qualification
 router.get("/determineRank", auth, determineRank);
 // router.get("/api/determineRank", determineRank);

@@ -218,10 +218,6 @@ exports.withdraw = async (req, res) => {
         .json({ success: false, error: "Insufficient balance." });
     }
 
-    // Deduct the withdrawal amount from the user's balance
-    user.balance -= amount;
-    await user.save();
-
     // Define the ERC-20 token contract ABI
     const tokenAbi = [
       "function transfer(address to, uint256 amount) public returns (bool)",
@@ -242,6 +238,10 @@ exports.withdraw = async (req, res) => {
 
     // Wait for the transaction to be confirmed
     await tx.wait();
+
+     // Deduct the withdrawal amount from the user's balance
+    user.balance -= amount;
+    await user.save();
 
     // Respond with the updated balance
     res.json({ success: true, balance: user.balance });
@@ -341,7 +341,7 @@ exports.yieldInvest = async (req, res) => {
     }
 
     // Check if the investment amount is within the allowed range (before package adjustments)
-    if (numericAmount < 100 || numericAmount > 25000) {
+    if (numericAmount === 1000 || numericAmount === 5000 || numericAmount === 10000 || numericAmount === 25000) {
       return res.status(400).json({
         error: "Stake amount must be between $100 and $25,000",
       });
@@ -360,7 +360,7 @@ exports.yieldInvest = async (req, res) => {
         actualInvestment = 10000; // Package yields $10,000 actual for $8,500
         break;
       case "ROYAL":
-        actualInvestment = 25000; // Package yields $10,000 actual for $8,500
+        actualInvestment = 25000; // Package yields $25,000 actual for $20,000
         break;
       default:
         return res.status(400).json({ error: "Invalid package type" });
@@ -373,6 +373,7 @@ exports.yieldInvest = async (req, res) => {
     // Create a new investment record
     const investment = new YieldInvestment({
       _id: new ObjectId(),
+      dailyROI: 0,
       userId: user._id,
       amount: numericAmount, // The amount user intends to invest
       packageType,
@@ -391,9 +392,9 @@ exports.yieldInvest = async (req, res) => {
     const activeInvestmentTotal = activeInvestments[0]?.total || 0;
     const newActiveInvestmentTotal = activeInvestmentTotal + numericAmount;
 
-    if (newActiveInvestmentTotal > 10000) {
+    if (newActiveInvestmentTotal > 25000) {
       return res.status(400).json({
-        error: "Total active stake cannot exceed $10,000",
+        error: "Total active stake cannot exceed $25,000",
       });
     }
 
