@@ -21,7 +21,7 @@ connectDB();
 app.use(
   cors({
     // origin: "http://localhost:5173", // Allow requests from this origin
-    origin: "http://tmc.live",
+    origin: "https://tmc.live",
     credentials: true, // Allow credentials (like cookies)
   })
 );
