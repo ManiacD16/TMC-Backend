@@ -20,7 +20,7 @@ connectDB();
 // Middleware for CORS
 app.use(
   cors({
-    origin: "https://tmc.live",
+    origin: ["https://tmc.live", "http://localhost:5173"],
     // origin: "http://localhost:5173", // Allow requests from this origin
     credentials: true, // Allow credentials (like cookies)
   })
