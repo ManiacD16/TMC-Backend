@@ -123,9 +123,12 @@ exports.logout = (req, res) => {
   }
 
   // Clear the cookie
+  // Clear the cookie when logging out
   res.clearCookie("jwtoken", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    httpOnly: true, // Ensures the cookie is not accessible via JavaScript (for security)
+    secure: process.env.NODE_ENV === "production", // Set to true in production (HTTPS)
+    sameSite: "None", // Important for cross-site requests (like for cross-origin logins)
+    path: "/", // Clear the cookie for the entire site
   });
 
   // Optionally, you can also invalidate the JWT on the server side (e.g., blacklist it),
