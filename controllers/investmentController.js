@@ -203,12 +203,14 @@ exports.withdraw = async (req, res) => {
   const { amount, userAddress } = req.body; // amount to withdraw and user's address
 
   try {
+    console.log("Withdrawal request received for user:", req.user.id);
+
     // Fetch the user based on the ID in the JWT
     const user = await User.findById(req.user.id);
-
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found." });
     }
+    console.log("User found:", user._id);
 
     // Check if the user has enough balance to withdraw
     if (req.body.key === "invest_withdraw") {
@@ -221,7 +223,7 @@ exports.withdraw = async (req, res) => {
       if (user.yieldBalance < amount) {
         return res
           .status(400)
-          .json({ success: false, error: "Insufficient balance." });
+          .json({ success: false, error: "Insufficient yield balance." });
       }
     }
 
@@ -231,6 +233,12 @@ exports.withdraw = async (req, res) => {
     ];
 
     // Create an instance of the token contract using ethers.js
+    const provider = new ethers.JsonRpcProvider(process.env.INFURA_URL); // Replace with your provider (Infura, Alchemy, etc.)
+    const adminWallet = new ethers.Wallet(
+      process.env.ADMIN_WALLET_PRIVATE_KEY,
+      provider
+    );
+
     const tokenContract = new ethers.Contract(
       process.env.TOKEN_CONTRACT_ADDRESS, // Replace with actual token contract address
       tokenAbi,
@@ -239,12 +247,26 @@ exports.withdraw = async (req, res) => {
 
     // Convert the amount to the smallest unit (Wei) for the token (adjust decimals as needed)
     const amountInWei = ethers.utils.parseUnits(amount.toString(), 18); // Assuming 18 decimals
+    console.log(
+      "Attempting to transfer:",
+      ethers.utils.formatUnits(amountInWei, 18),
+      "tokens"
+    );
 
     // Execute the transfer
     const tx = await tokenContract.transfer(userAddress, amountInWei);
+    console.log("Transaction submitted:", tx.hash);
 
-    // Wait for the transaction to be confirmed
-    await tx.wait();
+    try {
+      // Wait for the transaction to be mined (confirmed)
+      const receipt = await tx.wait();
+      console.log("Transaction confirmed:", receipt);
+    } catch (txError) {
+      console.error("Error waiting for transaction:", txError);
+      return res
+        .status(500)
+        .json({ success: false, error: "Blockchain transaction failed." });
+    }
 
     // Deduct the withdrawal amount from the user's balance
     if (req.body.key === "invest_withdraw") {
@@ -252,7 +274,10 @@ exports.withdraw = async (req, res) => {
     } else if (req.body.key === "yield_withdraw") {
       user.yieldBalance -= amount;
     }
+
+    // Save updated user data
     await user.save();
+    console.log("User balance updated successfully.");
 
     // Respond with the updated balance
     res.json({
