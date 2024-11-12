@@ -256,9 +256,9 @@ exports.withdraw = async (req, res) => {
     // Respond with the updated balance
     res.json({
       Status: "Request Processing...!",
-      requestID: reqID
-      // balance:
-      //   req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance,
+      requestID: reqID,
+      success: true,
+      balance: req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance
     });
     // Execute the transfer
     const tx = await tokenContract.transfer(userAddress, amountInWei);
