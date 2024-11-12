@@ -2,6 +2,7 @@ const User = require("../models/User");
 require("dotenv").config(); // This loads variables from .env into process.env
 const Investment = require("../models/investment");
 const YieldInvestment = require("../models/YieldInvestment");
+const Withdrawals = require("../models/withdrawals");
 const { ethers } = require("ethers");
 const { MongoClient, ObjectId } = require("mongodb");
 // BSC testnet RPC endpoint
@@ -240,12 +241,6 @@ exports.withdraw = async (req, res) => {
     // Convert the amount to the smallest unit (Wei) for the token (adjust decimals as needed)
     const amountInWei = ethers.utils.parseUnits(amount.toString(), 18); // Assuming 18 decimals
 
-    // Execute the transfer
-    const tx = await tokenContract.transfer(userAddress, amountInWei);
-
-    // Wait for the transaction to be confirmed
-    await tx.wait();
-
     // Deduct the withdrawal amount from the user's balance
     if (req.body.key === "invest_withdraw") {
       user.balance -= amount;
@@ -253,18 +248,68 @@ exports.withdraw = async (req, res) => {
       user.yieldBalance -= amount;
     }
     await user.save();
+    // let totalWithdrawals = await Withdrawals.find({});
+    // console.log("totalWithdrawals", totalWithdrawals);
+
+    let reqID = totalWithdrawals.length++ ;
 
     // Respond with the updated balance
     res.json({
-      success: true,
-      balance:
-        req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance,
+      Status: "Request Processing...!",
+      requestID: reqID
+      // balance:
+      //   req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance,
     });
+    // Execute the transfer
+    const tx = await tokenContract.transfer(userAddress, amountInWei);
+
+    // Wait for the transaction to be confirmed
+    let confirmation = await tx.wait();
+    if(confirmation){
+      // Create a new investment record
+      
+    const w = new Withdrawals({
+      userId: user._id,
+      requestID: 0,
+      amount: Number(reqID),
+      withdrawalType: req.body.key,
+      fundsTransferred: true,
+      hasInitiated: true,
+      newBalance: req.body.key === "invest_withdraw" ? Number(user.balance) : Number(user.yieldBalance),
+      userAddress: userAddress
+    });
+    console.log("withdrawal ====>>>>>> ", w);
+    
+    // Save the withdrawal record
+    await w.save();
+    }
+    
   } catch (error) {
     console.error("Error processing withdrawal:", error);
     res.status(500).json({ success: false, error: "Withdrawal failed." });
   }
 };
+
+exports.getWithdrawalStatus = async(req, res) =>{
+  const {reqID} = req.query;
+
+  try{
+    const requestData = await Withdrawals.find({
+      requestID: reqID
+    });
+    res.status(200).json({
+      status: "Withdrawal Found!",
+      investmentType: requestData[0].withdrawalType,
+      fundsTransferredStatis: requestData[0].fundsTransferred
+    })
+  }
+  catch(error){
+    res.status(404).json({
+      data: null,
+      status: "NOT FOUND!"
+    })
+  }
+}
 
 // Invest with Cap Check
 

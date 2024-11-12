@@ -14,6 +14,7 @@ const {
   determineRank,
   getUserBalance,
   getyieldBalance,
+  getWithdrawalStatus
 } = require("../controllers/investmentController");
 const router = express.Router();
 const auth = require("../middleware/auth");
@@ -56,4 +57,7 @@ router.post("/buy-yield-package", auth, yieldInvest);
 // calculatr rank qualification
 router.get("/determineRank", auth, determineRank);
 // router.get("/api/determineRank", determineRank);
+
+//get withdrawal status
+router.get("/getWithdrawalStatus", getWithdrawalStatus);
 module.exports = router;
