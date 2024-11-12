@@ -113,10 +113,10 @@ exports.login = async (req, res) => {
 };
 
 // Logout by clearing cookie
-exports.logout = (req, res) => {
-  res.clearCookie("token");
-  res.json({ message: "Logged out successfully" });
-};
+// exports.logout = (req, res) => {
+//   res.clearCookie("token");
+//   res.json({ message: "Logged out successfully" });
+// };
 
 // Fetch User Data
 exports.fetchUserData = async (req, res) => {
