@@ -34,7 +34,7 @@ cron.schedule("*/20 * * * *", async () => {
       });
 
       const yieldInvestments = await YieldInvestment.find({
-        userId: user._id
+        userId: user._id,
       });
 
       for (const investment of yieldInvestments) {
