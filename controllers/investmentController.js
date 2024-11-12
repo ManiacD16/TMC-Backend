@@ -300,7 +300,7 @@ exports.getWithdrawalStatus = async(req, res) =>{
     res.status(200).json({
       status: "Withdrawal Found!",
       investmentType: requestData[0].withdrawalType,
-      fundsTransferredStatis: requestData[0].fundsTransferred
+      fundsTransferredStatus: requestData[0].fundsTransferred
     })
   }
   catch(error){
