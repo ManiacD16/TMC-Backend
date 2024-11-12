@@ -200,17 +200,14 @@ exports.updateDailyROI = async (req, res) => {
 // const { ethers } = require("ethers");
 
 exports.withdraw = async (req, res) => {
-  const { amount, userAddress } = req.body; // amount to withdraw and user's address
+  const { amount, userAddress } = req.body;
 
   try {
-    // Fetch the user based on the ID in the JWT
     const user = await User.findById(req.user.id);
-
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found." });
     }
 
-    // Check if the user has enough balance to withdraw
     if (req.body.key === "invest_withdraw") {
       if (user.balance < amount) {
         return res
@@ -225,44 +222,49 @@ exports.withdraw = async (req, res) => {
       }
     }
 
-    // Define the ERC-20 token contract ABI
-    const tokenAbi = [
-      "function transfer(address to, uint256 amount) public returns (bool)",
-    ];
+    // Return immediate response that withdrawal is being processed
+    res.json({ success: true, message: "Withdrawal processing started." });
 
-    // Create an instance of the token contract using ethers.js
-    const tokenContract = new ethers.Contract(
-      process.env.TOKEN_CONTRACT_ADDRESS, // Replace with actual token contract address
-      tokenAbi,
-      adminWallet // Signer
-    );
-
-    // Convert the amount to the smallest unit (Wei) for the token (adjust decimals as needed)
-    const amountInWei = ethers.utils.parseUnits(amount.toString(), 18); // Assuming 18 decimals
-
-    // Execute the transfer
-    const tx = await tokenContract.transfer(userAddress, amountInWei);
-
-    // Wait for the transaction to be confirmed
-    await tx.wait();
-
-    // Deduct the withdrawal amount from the user's balance
-    if (req.body.key === "invest_withdraw") {
-      user.balance -= amount;
-    } else if (req.body.key === "yield_withdraw") {
-      user.yieldBalance -= amount;
-    }
-    await user.save();
-
-    // Respond with the updated balance
-    res.json({
-      success: true,
-      balance:
-        req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance,
-    });
+    // Use a background process to handle the blockchain transaction
+    handleBlockchainWithdrawal(user, amount, userAddress, req.body.key);
   } catch (error) {
     console.error("Error processing withdrawal:", error);
     res.status(500).json({ success: false, error: "Withdrawal failed." });
+  }
+};
+
+const handleBlockchainWithdrawal = async (
+  user,
+  amount,
+  userAddress,
+  withdrawalType
+) => {
+  try {
+    // Define token contract and wallet setup (same logic)
+    const tokenAbi = [
+      "function transfer(address to, uint256 amount) public returns (bool)",
+    ];
+    const tokenContract = new ethers.Contract(
+      process.env.TOKEN_CONTRACT_ADDRESS,
+      tokenAbi,
+      adminWallet // Admin wallet signer
+    );
+
+    const amountInWei = ethers.utils.parseUnits(amount.toString(), 18);
+    const tx = await tokenContract.transfer(userAddress, amountInWei);
+
+    await tx.wait(); // Wait for blockchain confirmation
+
+    // Update user balance after successful transaction
+    if (withdrawalType === "invest_withdraw") {
+      user.balance -= amount;
+    } else if (withdrawalType === "yield_withdraw") {
+      user.yieldBalance -= amount;
+    }
+    await user.save();
+  } catch (error) {
+    console.error("Error during blockchain withdrawal:", error);
+    // Optionally log this error or notify the user
   }
 };
 
