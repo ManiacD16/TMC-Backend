@@ -14,7 +14,7 @@ const {
   determineRank,
   getUserBalance,
   getyieldBalance,
-  getWithdrawalStatus
+  getWithdrawalStatus,
 } = require("../controllers/investmentController");
 const router = express.Router();
 const auth = require("../middleware/auth");
