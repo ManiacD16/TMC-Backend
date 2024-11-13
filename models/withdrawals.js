@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const WithdrawalSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  requestID: { type: Number, required: true },
+  requestID: { type: String, required: true },
   amount: { type: Number, required: true },
   withdrawalType: {type: String, required: true},
   fundsTransferred: { type: Boolean, default: false },

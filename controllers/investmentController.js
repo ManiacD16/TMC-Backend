@@ -248,15 +248,15 @@ exports.withdraw = async (req, res) => {
       user.yieldBalance -= amount;
     }
     await user.save();
-    // let totalWithdrawals = await Withdrawals.find({});
+    let totalWithdrawals = await Withdrawals.find({});
     // console.log("totalWithdrawals", totalWithdrawals);
 
-    let reqID = totalWithdrawals.length++ ;
+    let reqID = new ObjectId();
 
     // Respond with the updated balance
     res.json({
       Status: "Request Processing...!",
-      requestID: reqID,
+      requestID: String(reqID),
       success: true,
       balance: req.body.key === "invest_withdraw" ? user.balance : user.yieldBalance
     });
@@ -270,8 +270,8 @@ exports.withdraw = async (req, res) => {
       
     const w = new Withdrawals({
       userId: user._id,
-      requestID: 0,
-      amount: Number(reqID),
+      requestID: String(reqID),
+      amount: Number(amount),
       withdrawalType: req.body.key,
       fundsTransferred: true,
       hasInitiated: true,
