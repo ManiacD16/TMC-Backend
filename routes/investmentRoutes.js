@@ -59,5 +59,5 @@ router.get("/determineRank", auth, determineRank);
 // router.get("/api/determineRank", determineRank);
 
 //get withdrawal status
-router.get("/getWithdrawalStatus", getWithdrawalStatus);
+router.post("/getWithdrawalStatus", getWithdrawalStatus);
 module.exports = router;
