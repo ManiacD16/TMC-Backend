@@ -289,7 +289,7 @@ exports.withdraw = async (req, res) => {
 };
 
 exports.getWithdrawalStatus = async(req, res) =>{
-  const {reqID} = req.query;
+  const {reqID} = req.body;
 
   try{
     const requestData = await Withdrawals.find({
