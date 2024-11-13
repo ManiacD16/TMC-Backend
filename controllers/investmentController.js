@@ -248,8 +248,6 @@ exports.withdraw = async (req, res) => {
       user.yieldBalance -= amount;
     }
     await user.save();
-    let totalWithdrawals = await Withdrawals.find({});
-    // console.log("totalWithdrawals", totalWithdrawals);
 
     let reqID = new ObjectId();
 
